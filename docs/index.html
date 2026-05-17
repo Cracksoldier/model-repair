@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>model-repair — Linux 3D Mesh Repair Tool</title>
+  <style>
+    /* ── Reset & base ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d1117;
+      --bg2:       #161b22;
+      --bg3:       #21262d;
+      --border:    #30363d;
+      --text:      #e6edf3;
+      --muted:     #8b949e;
+      --accent:    #2f81f7;
+      --accent2:   #1f6feb;
+      --green:     #3fb950;
+      --orange:    #d29922;
+      --red:       #f85149;
+      --radius:    8px;
+      --mono:      'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      --sans:      -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      font-size: 16px;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    h1, h2, h3, h4 { line-height: 1.25; font-weight: 600; }
+    h2 { font-size: 1.75rem; margin-bottom: 0.5rem; }
+    h3 { font-size: 1.2rem; margin-bottom: 0.4rem; }
+
+    section { padding: 80px 0; }
+    section:nth-child(even) { background: var(--bg2); }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    .section-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+    }
+
+    .section-intro {
+      color: var(--muted);
+      font-size: 1.05rem;
+      margin-bottom: 2.5rem;
+      max-width: 640px;
+    }
+
+    /* ── Nav ──────────────────────────────────────────────────────── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(13, 17, 23, 0.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-inner {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .nav-logo {
+      font-family: var(--mono);
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    .nav-logo span { color: var(--accent); }
+
+    .nav-links {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+      flex: 1;
+    }
+
+    .nav-links a {
+      font-size: 0.875rem;
+      color: var(--muted);
+      transition: color 0.15s;
+    }
+
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+
+    .nav-gh {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.875rem;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      padding: 5px 12px;
+      border-radius: var(--radius);
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    .nav-gh:hover { border-color: var(--accent); color: var(--text); text-decoration: none; }
+
+    /* ── Hero ─────────────────────────────────────────────────────── */
+    #hero {
+      padding: 100px 0 80px;
+      background: var(--bg);
+      position: relative;
+      overflow: hidden;
+    }
+
+    #hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 80% 60% at 50% -20%,
+        rgba(47,129,247,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      color: var(--accent);
+      background: rgba(47,129,247,0.1);
+      border: 1px solid rgba(47,129,247,0.3);
+      border-radius: 99px;
+      padding: 4px 12px;
+      margin-bottom: 1.5rem;
+    }
+
+    .hero-title {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+      line-height: 1.15;
+    }
+
+    .hero-title code {
+      font-family: var(--mono);
+      color: var(--accent);
+      background: rgba(47,129,247,0.1);
+      padding: 2px 10px;
+      border-radius: 6px;
+      font-size: 0.9em;
+    }
+
+    .hero-sub {
+      font-size: 1.15rem;
+      color: var(--muted);
+      max-width: 580px;
+      margin-bottom: 2rem;
+      line-height: 1.7;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      border: none;
+    }
+
+    .btn:hover { opacity: 0.85; text-decoration: none; transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-secondary {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .hero-stats {
+      display: flex;
+      gap: 32px;
+      margin-top: 3rem;
+      flex-wrap: wrap;
+    }
+
+    .stat { }
+    .stat-val {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .stat-label { font-size: 0.8rem; color: var(--muted); }
+
+    /* ── Features grid ────────────────────────────────────────────── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .feature-card {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      transition: border-color 0.15s;
+    }
+
+    .feature-card:hover { border-color: var(--accent); }
+
+    .feature-icon {
+      font-size: 1.5rem;
+      margin-bottom: 10px;
+    }
+
+    .feature-card h3 { font-size: 1rem; margin-bottom: 6px; }
+    .feature-card p { font-size: 0.875rem; color: var(--muted); line-height: 1.55; }
+
+    /* ── Pipeline ─────────────────────────────────────────────────── */
+    .pipeline {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      position: relative;
+    }
+
+    .pipeline::before {
+      content: '';
+      position: absolute;
+      left: 23px;
+      top: 24px;
+      bottom: 24px;
+      width: 2px;
+      background: var(--border);
+    }
+
+    .pipe-step {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+      padding: 16px 0;
+      position: relative;
+    }
+
+    .pipe-num {
+      width: 48px;
+      height: 48px;
+      min-width: 48px;
+      border-radius: 50%;
+      background: var(--bg3);
+      border: 2px solid var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--accent);
+      z-index: 1;
+    }
+
+    .pipe-content { padding-top: 10px; }
+    .pipe-content h3 { font-size: 1rem; margin-bottom: 4px; }
+    .pipe-content p { font-size: 0.875rem; color: var(--muted); }
+    .pipe-content code {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      padding: 1px 6px;
+      border-radius: 4px;
+      color: var(--green);
+    }
+
+    .pipe-tag {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: rgba(209,153,34,0.15);
+      color: var(--orange);
+      border: 1px solid rgba(209,153,34,0.3);
+      border-radius: 4px;
+      padding: 1px 6px;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
+    /* ── Code blocks ──────────────────────────────────────────────── */
+    .code-block {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin: 16px 0;
+    }
+
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .code-dots { display: flex; gap: 6px; }
+    .code-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+    }
+    .code-dot:nth-child(1) { background: #ff5f57; }
+    .code-dot:nth-child(2) { background: #febc2e; }
+    .code-dot:nth-child(3) { background: #28c840; }
+
+    .copy-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 0.7rem;
+      cursor: pointer;
+      font-family: var(--sans);
+      transition: color 0.15s, border-color 0.15s;
+    }
+
+    .copy-btn:hover { color: var(--text); border-color: var(--muted); }
+    .copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+    pre {
+      padding: 16px;
+      overflow-x: auto;
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      line-height: 1.65;
+      tab-size: 4;
+    }
+
+    .c-comment { color: #8b949e; }
+    .c-kw      { color: #ff7b72; }
+    .c-str     { color: #a5d6ff; }
+    .c-cmd     { color: #79c0ff; }
+    .c-flag    { color: #d2a8ff; }
+    .c-val     { color: #ffa657; }
+    .c-ok      { color: #3fb950; }
+    .c-muted   { color: #8b949e; }
+
+    /* ── Tabs ─────────────────────────────────────────────────────── */
+    .tabs { margin-bottom: 0; }
+
+    .tab-list {
+      display: flex;
+      gap: 4px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 0;
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      padding: 8px 16px;
+      font-family: var(--sans);
+      font-size: 0.875rem;
+      color: var(--muted);
+      cursor: pointer;
+      margin-bottom: -1px;
+      transition: color 0.15s;
+    }
+
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── CLI ref table ────────────────────────────────────────────── */
+    .cli-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+
+    .cli-table th {
+      text-align: left;
+      padding: 8px 12px;
+      border-bottom: 2px solid var(--border);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .cli-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    .cli-table tr:last-child td { border-bottom: none; }
+    .cli-table tr:hover td { background: var(--bg3); }
+
+    .cli-table code {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      color: var(--green);
+      white-space: nowrap;
+    }
+
+    .cli-table td:last-child { color: var(--muted); }
+
+    /* ── Architecture diagram ─────────────────────────────────────── */
+    .arch-diagram {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      line-height: 1.8;
+      overflow-x: auto;
+    }
+
+    .arch-lib  { color: var(--accent); font-weight: 700; }
+    .arch-bin  { color: var(--green);  font-weight: 700; }
+    .arch-dep  { color: var(--orange); }
+    .arch-muted { color: var(--muted); }
+
+    /* ── Formats badge row ────────────────────────────────────────── */
+    .badge-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 99px;
+      border: 1px solid;
+    }
+
+    .badge-blue   { color: var(--accent); border-color: rgba(47,129,247,0.4); background: rgba(47,129,247,0.08); }
+    .badge-green  { color: var(--green);  border-color: rgba(63,185,80,0.4);  background: rgba(63,185,80,0.08); }
+    .badge-orange { color: var(--orange); border-color: rgba(210,153,34,0.4); background: rgba(210,153,34,0.08); }
+
+    /* ── Footer ───────────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border);
+      background: var(--bg);
+      padding: 40px 0;
+    }
+
+    .footer-inner {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .footer-logo {
+      font-family: var(--mono);
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .footer-logo span { color: var(--accent); }
+
+    .footer-links {
+      display: flex;
+      gap: 20px;
+      list-style: none;
+    }
+
+    .footer-links a { font-size: 0.875rem; color: var(--muted); }
+    .footer-links a:hover { color: var(--text); }
+
+    /* ── Responsive ───────────────────────────────────────────────── */
+    @media (max-width: 640px) {
+      .nav-links { display: none; }
+      section { padding: 56px 0; }
+      #hero { padding: 72px 0 56px; }
+      .hero-stats { gap: 20px; }
+      .pipeline::before { left: 19px; }
+      .pipe-num { width: 40px; height: 40px; min-width: 40px; font-size: 0.8rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Nav ───────────────────────────────────────────────────────── -->
+<nav>
+  <div class="nav-inner">
+    <span class="nav-logo">model<span>-repair</span></span>
+    <ul class="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#install">Install</a></li>
+      <li><a href="#pipeline">Pipeline</a></li>
+      <li><a href="#cli">CLI</a></li>
+      <li><a href="#architecture">Architecture</a></li>
+    </ul>
+    <a class="nav-gh" href="https://github.com/Cracksoldier/3d-print-model-repair" target="_blank" rel="noopener">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38
+          0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13
+          -.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66
+          .07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15
+          -.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27
+          .68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12
+          .51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48
+          0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+      </svg>
+      GitHub
+    </a>
+  </div>
+</nav>
+
+<!-- ── Hero ──────────────────────────────────────────────────────── -->
+<section id="hero">
+  <div class="container">
+    <div class="hero-badge">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M8 0a8 8 0 100 16A8 8 0 008 0zm3.5 7.5l-5 5a.75.75 0 01-1.06-1.06L9.94 7 5.44 2.56A.75.75 0 016.5 1.5l5 5a.75.75 0 010 1.06z"/>
+      </svg>
+      Open source · C++20 · Linux
+    </div>
+    <h1 class="hero-title">
+      Fix broken 3D models<br>
+      on <code>Linux</code>
+    </h1>
+    <p class="hero-sub">
+      A native Linux equivalent of Bambu Studio's Windows-only "Fix Model" feature.
+      Repairs non-manifold geometry, holes, bad normals, and self-intersections
+      so your models slice cleanly every time.
+    </p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="#install">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M7.47 10.78a.75.75 0 001.06 0l3.75-3.75a.75.75 0 00-1.06-1.06L8.75 8.44V1.75a.75.75 0 00-1.5 0v6.69L4.78 5.97a.75.75 0 00-1.06 1.06l3.75 3.75zM3.75 13a.75.75 0 000 1.5h8.5a.75.75 0 000-1.5h-8.5z"/>
+        </svg>
+        Get started
+      </a>
+      <a class="btn btn-secondary" href="https://github.com/Cracksoldier/3d-print-model-repair" target="_blank" rel="noopener">
+        View on GitHub
+      </a>
+    </div>
+    <div class="hero-stats">
+      <div class="stat">
+        <div class="stat-val">6</div>
+        <div class="stat-label">repair steps</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">3</div>
+        <div class="stat-label">file formats</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">17</div>
+        <div class="stat-label">passing tests</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">CLI + GUI</div>
+        <div class="stat-label">two frontends</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Features ──────────────────────────────────────────────────── -->
+<section id="features">
+  <div class="container">
+    <div class="section-label">What it repairs</div>
+    <h2>Every defect that breaks your slicer</h2>
+    <p class="section-intro">
+      model-repair uses CGAL's Polygon Mesh Processing module — the same geometry
+      kernel used in research and production CAD — to detect and fix the six classes
+      of mesh errors that cause failed prints.
+    </p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🔗</div>
+        <h3>Duplicate vertices</h3>
+        <p>STL files store triangles as independent vertex triples with no sharing.
+           Merging them is required before any topology analysis can proceed.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🗑️</div>
+        <h3>Degenerate triangles</h3>
+        <p>Zero-area faces with collinear or coincident vertices corrupt normal
+           computation and hole detection. Removed before any further processing.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⚠️</div>
+        <h3>Non-manifold geometry</h3>
+        <p>Edges shared by more than two faces, or vertex fans that are not
+           disk-topology. Slicers cannot compute infill on non-manifold meshes.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔄</div>
+        <h3>Inconsistent normals</h3>
+        <p>Faces whose winding order points inward instead of outward. Causes
+           inside-out or partially inverted prints and incorrect support generation.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🕳️</div>
+        <h3>Holes &amp; open boundaries</h3>
+        <p>Missing faces left by degenerate removal, non-manifold splitting, or
+           upstream CAD export errors. Filled with smooth or flat triangulation.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">✂️</div>
+        <h3>Self-intersections</h3>
+        <p>Overlapping triangles from boolean CSG operations or poorly exported
+           models. Removed using CGAL's exact-arithmetic kernel for robustness.</p>
+      </div>
+    </div>
+    <div class="badge-row" style="margin-top:2rem;">
+      <span class="badge badge-blue">STL binary</span>
+      <span class="badge badge-blue">STL ASCII</span>
+      <span class="badge badge-green">OBJ</span>
+      <span class="badge badge-orange">3MF</span>
+    </div>
+  </div>
+</section>
+
+<!-- ── Install ────────────────────────────────────────────────────── -->
+<section id="install">
+  <div class="container">
+    <div class="section-label">Getting started</div>
+    <h2>Build from source</h2>
+    <p class="section-intro">
+      model-repair is built with CMake. FetchContent handles lib3mf, CLI11,
+      spdlog, and Catch2 automatically — only system packages are needed upfront.
+    </p>
+
+    <h3 style="margin-bottom:12px;">1 — Install system dependencies</h3>
+    <div class="code-block tabs">
+      <div class="code-header">
+        <div class="tab-list" id="distro-tabs">
+          <button class="tab-btn active" onclick="switchTab('arch')">Arch / CachyOS</button>
+          <button class="tab-btn" onclick="switchTab('ubuntu')">Ubuntu / Debian</button>
+          <button class="tab-btn" onclick="switchTab('fedora')">Fedora</button>
+        </div>
+        <button class="copy-btn" onclick="copyCode(this, 'deps-arch')">Copy</button>
+      </div>
+      <div id="deps-arch" class="tab-panel active">
+<pre><span class="c-cmd">sudo pacman -S</span> <span class="c-val">cgal eigen3 boost gmp mpfr qt6-base cmake git</span></pre>
+      </div>
+      <div id="deps-ubuntu" class="tab-panel">
+<pre><span class="c-cmd">sudo apt install</span> <span class="c-val">libcgal-dev libeigen3-dev libboost-all-dev \
+  libgmp-dev libmpfr-dev qt6-base-dev cmake git</span></pre>
+      </div>
+      <div id="deps-fedora" class="tab-panel">
+<pre><span class="c-cmd">sudo dnf install</span> <span class="c-val">CGAL-devel eigen3-devel boost-devel \
+  gmp-devel mpfr-devel qt6-qtbase-devel cmake git</span></pre>
+      </div>
+    </div>
+
+    <h3 style="margin-bottom:12px; margin-top:2rem;">2 — Clone and configure</h3>
+    <div class="code-block">
+      <div class="code-header">
+        <div class="code-dots"><span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span></div>
+        <span>bash</span>
+        <button class="copy-btn" onclick="copyCode(this, 'clone-block')">Copy</button>
+      </div>
+      <pre id="clone-block"><span class="c-cmd">git clone</span> https://github.com/Cracksoldier/3d-print-model-repair.git
+<span class="c-cmd">cd</span> 3d-print-model-repair
+
+<span class="c-comment"># Downloads lib3mf, CLI11, spdlog, Catch2 automatically</span>
+<span class="c-cmd">cmake</span> <span class="c-flag">--preset</span> release</pre>
+    </div>
+
+    <h3 style="margin-bottom:12px; margin-top:2rem;">3 — Build</h3>
+    <div class="code-block">
+      <div class="code-header">
+        <div class="code-dots"><span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span></div>
+        <span>bash</span>
+        <button class="copy-btn" onclick="copyCode(this, 'build-block')">Copy</button>
+      </div>
+      <pre id="build-block"><span class="c-cmd">cmake</span> <span class="c-flag">--build</span> build/release <span class="c-flag">-j</span>$(nproc)
+
+<span class="c-comment"># Produced binaries</span>
+build/release/src/libmodelrepair.so   <span class="c-muted"># shared library</span>
+build/release/cli/model-repair        <span class="c-muted"># CLI tool</span>
+build/release/gui/model-repair-gui    <span class="c-muted"># Qt desktop app</span></pre>
+    </div>
+
+    <h3 style="margin-bottom:12px; margin-top:2rem;">4 — Run the tests</h3>
+    <div class="code-block">
+      <div class="code-header">
+        <div class="code-dots"><span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span></div>
+        <span>bash</span>
+        <button class="copy-btn" onclick="copyCode(this, 'test-block')">Copy</button>
+      </div>
+      <pre id="test-block">ctest <span class="c-flag">--preset</span> release <span class="c-flag">--output-on-failure</span>
+
+<span class="c-ok">100% tests passed, 0 tests failed out of 17</span></pre>
+    </div>
+
+    <div style="margin-top:1.5rem; padding:16px; background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); font-size:0.875rem;">
+      <strong>Build options</strong>
+      <table class="cli-table" style="margin-top:10px;">
+        <thead><tr><th>Preset</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>release</code></td><td>Optimised build, all targets</td></tr>
+          <tr><td><code>debug</code></td><td>Debug symbols + AddressSanitizer</td></tr>
+          <tr><td><code>release-nogui</code></td><td>Release, CLI only — no Qt dependency</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── Pipeline ───────────────────────────────────────────────────── -->
+<section id="pipeline">
+  <div class="container">
+    <div class="section-label">How it works</div>
+    <h2>Ordered repair pipeline</h2>
+    <p class="section-intro">
+      Each step is a hard precondition for the next. Running them out of order
+      produces incorrect results — for example, normal orientation only works
+      reliably on manifold meshes.
+    </p>
+
+    <div class="pipeline">
+
+      <div class="pipe-step">
+        <div class="pipe-num">1</div>
+        <div class="pipe-content">
+          <h3>Merge duplicate vertices</h3>
+          <p>Converts the raw polygon soup (how STL files are stored) into a proper
+             half-edge mesh. Calls <code>PMP::repair_polygon_soup</code> which also
+             removes degenerate and duplicate polygons before rebuilding the mesh.</p>
+        </div>
+      </div>
+
+      <div class="pipe-step">
+        <div class="pipe-num">2</div>
+        <div class="pipe-content">
+          <h3>Remove degenerate triangles</h3>
+          <p>Eliminates zero-area faces using <code>PMP::remove_degenerate_faces</code>.
+             These corrupt every subsequent topological operation.</p>
+        </div>
+      </div>
+
+      <div class="pipe-step">
+        <div class="pipe-num">3</div>
+        <div class="pipe-content">
+          <h3>Fix non-manifold geometry</h3>
+          <p>Splits vertices where the face fan is not disk-topology using
+             <code>PMP::duplicate_non_manifold_vertices</code>. Ensures every
+             edge is shared by exactly two faces.</p>
+        </div>
+      </div>
+
+      <div class="pipe-step">
+        <div class="pipe-num">4</div>
+        <div class="pipe-content">
+          <h3>Fix face normals</h3>
+          <p>Orients each connected component so all normals point outward using
+             <code>PMP::orient</code>. Skips the closed-mesh check on open surfaces
+             to avoid spurious CGAL warnings.</p>
+        </div>
+      </div>
+
+      <div class="pipe-step">
+        <div class="pipe-num">5</div>
+        <div class="pipe-content">
+          <h3>Fill holes</h3>
+          <p>Patches open boundary cycles using
+             <code>PMP::triangulate_and_refine_hole</code> (smooth) or
+             <code>PMP::triangulate_hole</code> (flat). Holes are collected
+             via full boundary-cycle traversal; a <code>--max-hole-edges</code>
+             limit skips large intentional openings.</p>
+        </div>
+      </div>
+
+      <div class="pipe-step">
+        <div class="pipe-num">6</div>
+        <div class="pipe-content">
+          <h3>Remove self-intersections <span class="pipe-tag">slow</span></h3>
+          <p>Converts to <code>EPECK</code> (exact constructions kernel) for
+             robustness, calls <code>PMP::experimental::remove_self_intersections</code>,
+             then converts back to <code>EPICK</code>. Disable with
+             <code>--no-remove-self-intersections</code> for fast passes.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── CLI ────────────────────────────────────────────────────────── -->
+<section id="cli">
+  <div class="container">
+    <div class="section-label">CLI reference</div>
+    <h2>Command-line tool</h2>
+    <p class="section-intro">
+      All repair steps are enabled by default. Disable any step individually
+      with a <code>--no-*</code> flag. Format is inferred from the file extension.
+    </p>
+
+    <div class="code-block">
+      <div class="code-header">
+        <div class="code-dots"><span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span></div>
+        <span>usage</span>
+      </div>
+<pre>model-repair <span class="c-val">INPUT OUTPUT</span> [OPTIONS]</pre>
+    </div>
+
+    <div class="code-block" style="margin-top:1.5rem;">
+      <div class="code-header">
+        <div class="code-dots"><span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span></div>
+        <span>examples</span>
+        <button class="copy-btn" onclick="copyCode(this, 'examples-block')">Copy</button>
+      </div>
+      <pre id="examples-block"><span class="c-comment"># Basic repair — all steps, binary STL output</span>
+model-repair broken.stl repaired.stl
+
+<span class="c-comment"># Verbose per-step progress with JSON report</span>
+model-repair broken.stl repaired.stl <span class="c-flag">--verbose</span> <span class="c-flag">--report</span> report.json
+
+<span class="c-comment"># Convert STL → 3MF while repairing</span>
+model-repair broken.stl repaired.3mf
+
+<span class="c-comment"># Skip the slow self-intersection pass</span>
+model-repair broken.stl repaired.stl <span class="c-flag">--no-remove-self-intersections</span>
+
+<span class="c-comment"># Only fill holes smaller than 20 edges</span>
+model-repair broken.stl repaired.stl <span class="c-flag">--max-hole-edges</span> 20</pre>
+    </div>
+
+    <h3 style="margin:2rem 0 1rem;">All options</h3>
+    <div class="code-block">
+      <table class="cli-table">
+        <thead>
+          <tr><th>Flag</th><th>Default</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>--no-merge-vertices</code></td><td>on</td><td>Skip duplicate vertex merging</td></tr>
+          <tr><td><code>--no-remove-degenerate</code></td><td>on</td><td>Skip degenerate triangle removal</td></tr>
+          <tr><td><code>--no-fix-non-manifold</code></td><td>on</td><td>Skip non-manifold repair</td></tr>
+          <tr><td><code>--no-fix-normals</code></td><td>on</td><td>Skip normal orientation fix</td></tr>
+          <tr><td><code>--no-fill-holes</code></td><td>on</td><td>Skip hole filling</td></tr>
+          <tr><td><code>--max-hole-edges N</code></td><td>0 (all)</td><td>Skip holes with more than N boundary edges</td></tr>
+          <tr><td><code>--flat-fill</code></td><td>smooth</td><td>Use flat fan fill instead of refined smooth fill</td></tr>
+          <tr><td><code>--no-remove-self-intersections</code></td><td>on</td><td>Skip self-intersection removal (slowest step)</td></tr>
+          <tr><td><code>--ascii-stl</code></td><td>binary</td><td>Write ASCII STL instead of binary</td></tr>
+          <tr><td><code>--report PATH</code></td><td>—</td><td>Write repair report to JSON file</td></tr>
+          <tr><td><code>--report-format text|json</code></td><td>text</td><td>Stdout report format</td></tr>
+          <tr><td><code>-v, --verbose</code></td><td>off</td><td>Print per-step progress and timing</td></tr>
+          <tr><td><code>-q, --quiet</code></td><td>off</td><td>Suppress all output except errors</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin:2rem 0 1rem;">Sample output</h3>
+    <div class="code-block">
+      <div class="code-header">
+        <div class="code-dots"><span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span></div>
+        <span>model-repair open_surface.stl repaired.stl --verbose</span>
+      </div>
+<pre><span class="c-muted">[info]</span> Loading open_surface.stl
+<span class="c-muted">[info]</span> Loaded 24 vertices, 8 triangles
+<span class="c-muted">[debug]</span> [1/6] Merge duplicate vertices
+<span class="c-muted">[debug]</span> [2/6] Remove degenerate triangles
+<span class="c-muted">[debug]</span> [3/6] Fix non-manifold geometry
+<span class="c-muted">[debug]</span> [4/6] Fix face normals
+<span class="c-muted">[debug]</span> [5/6] Fill holes
+<span class="c-muted">[debug]</span> [6/6] Remove self-intersections
+=== Repair Report ===
+  Vertices : 24 -> 8
+  Triangles: 8 -> 12
+  Manifold : <span class="c-ok">yes</span>
+  Closed   : <span class="c-ok">yes</span>
+
+  Merge duplicate vertices          found 16, fixed 16  (1.2 ms)
+  Remove degenerate triangles       <span class="c-ok">ok</span>  (0.1 ms)
+  Fix non-manifold geometry         <span class="c-ok">ok</span>  (0.1 ms)
+  Fix face normals                  found 1, fixed 1  (0.4 ms)
+  Fill holes                        found 2, fixed 2  (2.2 ms)
+  Remove self-intersections         <span class="c-ok">ok</span>  (1.2 ms)
+<span class="c-muted">[info]</span> Saving repaired.stl
+<span class="c-muted">[info]</span> Done. Manifold: <span class="c-ok">yes</span>, Closed: <span class="c-ok">yes</span></pre>
+    </div>
+
+    <h3 style="margin:2rem 0 1rem;">Exit codes</h3>
+    <div class="code-block">
+      <table class="cli-table">
+        <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>0</code></td><td>Success</td></tr>
+          <tr><td><code>1</code></td><td>Input file not found</td></tr>
+          <tr><td><code>2</code></td><td>Unsupported file format</td></tr>
+          <tr><td><code>3</code></td><td>Repair step failed</td></tr>
+          <tr><td><code>4</code></td><td>Output write error</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── Architecture ───────────────────────────────────────────────── -->
+<section id="architecture">
+  <div class="container">
+    <div class="section-label">Architecture</div>
+    <h2>Library + two frontends</h2>
+    <p class="section-intro">
+      All repair logic lives in <code>libmodelrepair.so</code>. Both frontends
+      link it dynamically — satisfying CGAL's LGPL terms without imposing license
+      constraints on the frontends.
+    </p>
+
+    <div class="arch-diagram">
+<span class="arch-lib">libmodelrepair.so</span>              <span class="arch-muted">(src/  ·  include/modelrepair/)</span>
+├── <span class="arch-lib">Mesh</span>                       <span class="arch-muted">CGAL Surface_mesh&lt;EPICK::Point_3&gt; wrapper</span>
+├── <span class="arch-lib">RepairPipeline</span>             <span class="arch-muted">run(Mesh&amp;) → RepairReport</span>
+├── <span class="arch-lib">RepairOptions</span>              <span class="arch-muted">plain struct — one bool/value per step</span>
+├── <span class="arch-lib">RepairReport</span>               <span class="arch-muted">vector&lt;StepReport&gt; + mesh stats</span>
+└── <span class="arch-lib">io/</span>  MeshIO · StlIO · ObjIO · ThreeMFIO
+
+<span class="arch-bin">model-repair</span>                   <span class="arch-muted">(cli/)  CLI11 + spdlog</span>
+<span class="arch-bin">model-repair-gui</span>               <span class="arch-muted">(gui/)  Qt 6 Widgets + Concurrent</span>
+├── MainWindow                 <span class="arch-muted">drag-drop, options checkboxes, Save As</span>
+├── RepairWorker               <span class="arch-muted">QObject on QThread — runs pipeline</span>
+└── ReportView                 <span class="arch-muted">QTreeWidget rendering RepairReport</span>
+
+<span class="arch-dep">Dependencies (system packages)</span>
+├── CGAL 6.x                   <span class="arch-muted">Polygon Mesh Processing — all repair ops</span>
+├── Eigen3                     <span class="arch-muted">required by CGAL</span>
+├── Boost / GMP / MPFR         <span class="arch-muted">required by CGAL</span>
+└── Qt 6 Widgets + Concurrent  <span class="arch-muted">GUI only</span>
+
+<span class="arch-dep">Dependencies (auto-fetched via FetchContent)</span>
+├── lib3mf v2.4.1              <span class="arch-muted">3MF format — Apache-2.0</span>
+├── CLI11 v2.4.2               <span class="arch-muted">argument parsing — MIT</span>
+├── spdlog v1.15.3             <span class="arch-muted">logging — MIT</span>
+└── Catch2 v3.8.1              <span class="arch-muted">tests — BSL-1.0</span>
+    </div>
+
+    <h3 style="margin: 2rem 0 1rem;">Kernel strategy</h3>
+    <div style="padding:16px 20px; background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius); font-size:0.875rem; line-height:1.7; color:var(--muted);">
+      Steps 1–5 use <strong style="color:var(--text)">EPICK</strong>
+      (Exact Predicates, Inexact Constructions) — fast floating-point coordinates
+      with exact predicate evaluation. Step 6 converts to
+      <strong style="color:var(--text)">EPECK</strong> (Exact Predicates, Exact
+      Constructions) via <code>CGAL::copy_face_graph</code> for robust
+      self-intersection removal, then converts back. This is transparent to callers.
+    </div>
+
+    <h3 style="margin: 2rem 0 1rem;">Bambu Studio integration</h3>
+    <div class="code-block">
+      <div class="code-header">
+        <div class="code-dots"><span class="code-dot"></span><span class="code-dot"></span><span class="code-dot"></span></div>
+        <span>wrap-repair.sh</span>
+        <button class="copy-btn" onclick="copyCode(this, 'wrap-block')">Copy</button>
+      </div>
+      <pre id="wrap-block"><span class="c-comment">#!/bin/bash</span>
+<span class="c-comment"># Repair a model and open it in Bambu Studio</span>
+INPUT=<span class="c-str">"$1"</span>
+REPAIRED=<span class="c-str">"${INPUT%.stl}_repaired.stl"</span>
+model-repair <span class="c-str">"$INPUT"</span> <span class="c-str">"$REPAIRED"</span> <span class="c-flag">--verbose</span> && bambu-studio <span class="c-str">"$REPAIRED"</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ────────────────────────────────────────────────────── -->
+<footer>
+  <div class="footer-inner">
+    <span class="footer-logo">model<span>-repair</span> v0.1.0</span>
+    <ul class="footer-links">
+      <li><a href="https://github.com/Cracksoldier/3d-print-model-repair" target="_blank" rel="noopener">GitHub</a></li>
+      <li><a href="https://github.com/Cracksoldier/3d-print-model-repair/issues" target="_blank" rel="noopener">Issues</a></li>
+      <li><a href="https://github.com/Cracksoldier/3d-print-model-repair/blob/main/README.md" target="_blank" rel="noopener">README</a></li>
+    </ul>
+  </div>
+</footer>
+
+<script>
+  /* Tab switching */
+  function switchTab(id) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('deps-' + id).classList.add('active');
+    event.target.classList.add('active');
+  }
+
+  /* Copy button */
+  function copyCode(btn, id) {
+    const el = document.getElementById(id) || btn.closest('.code-block').querySelector('pre');
+    navigator.clipboard.writeText(el.innerText).then(() => {
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+    });
+  }
+
+  /* Active nav link on scroll */
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('.nav-links a');
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        navLinks.forEach(a => a.style.color = '');
+        const link = document.querySelector(`.nav-links a[href="#${e.target.id}"]`);
+        if (link) link.style.color = 'var(--text)';
+      }
+    });
+  }, { threshold: 0.4 });
+  sections.forEach(s => obs.observe(s));
+</script>
+</body>
+</html>
