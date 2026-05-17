@@ -1,0 +1,75 @@
+#include "modelrepair/RepairPipeline.hpp"
+
+#include <chrono>
+
+namespace modelrepair
+{
+
+namespace
+{
+
+double elapsed_ms(std::chrono::steady_clock::time_point start)
+{
+    auto end = std::chrono::steady_clock::now();
+    return std::chrono::duration<double, std::milli>(end - start).count();
+}
+
+} // namespace
+
+RepairPipeline::RepairPipeline(RepairOptions opts) : opts_(std::move(opts)) {}
+
+void RepairPipeline::set_progress_callback(ProgressCallback cb)
+{
+    progress_cb_ = std::move(cb);
+}
+
+void RepairPipeline::notify(int step, int total, const std::string& name)
+{
+    if (progress_cb_)
+        progress_cb_(step, total, name);
+}
+
+RepairReport RepairPipeline::run(Mesh& mesh)
+{
+    RepairReport report;
+    report.vertices_before  = mesh.num_vertices();
+    report.triangles_before = mesh.num_faces();
+
+    constexpr int total_steps = 6;
+    int step = 0;
+
+    auto run_step = [&](const std::string& name, auto fn, bool enabled) -> StepReport
+    {
+        ++step;
+        StepReport sr;
+        sr.name    = name;
+        sr.was_run = enabled;
+        if (!enabled)
+            return sr;
+
+        notify(step, total_steps, name);
+        auto t0  = std::chrono::steady_clock::now();
+        sr        = fn();
+        sr.name   = name;
+        sr.was_run = true;
+        sr.duration_ms = elapsed_ms(t0);
+        return sr;
+    };
+
+    report.steps.push_back(run_step("Merge duplicate vertices",    [&] { return step_merge_vertices(mesh); },           opts_.merge_duplicate_vertices));
+    report.steps.push_back(run_step("Remove degenerate triangles", [&] { return step_remove_degenerate(mesh); },        opts_.remove_degenerate_triangles));
+    report.steps.push_back(run_step("Fix non-manifold geometry",   [&] { return step_fix_non_manifold(mesh); },         opts_.fix_non_manifold));
+    report.steps.push_back(run_step("Fix face normals",            [&] { return step_fix_normals(mesh); },              opts_.fix_normals));
+    report.steps.push_back(run_step("Fill holes",                  [&] { return step_fill_holes(mesh); },               opts_.fill_holes));
+    report.steps.push_back(run_step("Remove self-intersections",   [&] { return step_remove_self_intersections(mesh); }, opts_.remove_self_intersections));
+
+    report.vertices_after  = mesh.num_vertices();
+    report.triangles_after = mesh.num_faces();
+    report.is_valid_after    = mesh.is_valid();
+    report.is_manifold_after = mesh.is_manifold();
+    report.is_closed_after   = mesh.is_closed();
+
+    return report;
+}
+
+} // namespace modelrepair

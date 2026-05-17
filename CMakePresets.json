@@ -1,0 +1,56 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "debug",
+      "inherits": "base",
+      "displayName": "Debug (ASan)",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MODELREPAIR_ENABLE_ASAN": "ON"
+      }
+    },
+    {
+      "name": "release",
+      "inherits": "base",
+      "displayName": "Release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "release-nogui",
+      "inherits": "release",
+      "displayName": "Release (CLI only)",
+      "cacheVariables": {
+        "MODELREPAIR_BUILD_GUI": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "debug",          "configurePreset": "debug" },
+    { "name": "release",        "configurePreset": "release" },
+    { "name": "release-nogui",  "configurePreset": "release-nogui" }
+  ],
+  "testPresets": [
+    {
+      "name": "debug",
+      "configurePreset": "debug",
+      "output": { "verbosity": "verbose" },
+      "filter": { "exclude": { "name": "Test_CPP_Bindings" } }
+    },
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "filter": { "exclude": { "name": "Test_CPP_Bindings" } }
+    }
+  ]
+}
