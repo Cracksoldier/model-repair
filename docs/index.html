@@ -608,7 +608,7 @@
       </div>
       <div class="stat">
         <div class="stat-val">CLI + GUI</div>
-        <div class="stat-label">two frontends</div>
+        <div class="stat-label">3D preview</div>
       </div>
     </div>
   </div>
@@ -660,6 +660,13 @@
         <h3>Self-intersections</h3>
         <p>Overlapping triangles from boolean CSG operations or poorly exported
            models. Removed using CGAL's exact-arithmetic kernel for robustness.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🖥️</div>
+        <h3>3D Before / After preview</h3>
+        <p>The GUI opens a side-by-side OpenGL window after every repair. Rotate,
+           pan, and zoom with the mouse — both views share a synchronized camera
+           so you can compare the meshes without losing orientation.</p>
       </div>
     </div>
     <div class="badge-row" style="margin-top:2rem;">
@@ -968,16 +975,18 @@ model-repair broken.stl repaired.stl <span class="c-flag">--max-hole-edges</span
 └── <span class="arch-lib">io/</span>  MeshIO · StlIO · ObjIO · ThreeMFIO
 
 <span class="arch-bin">model-repair</span>                   <span class="arch-muted">(cli/)  CLI11 + spdlog</span>
-<span class="arch-bin">model-repair-gui</span>               <span class="arch-muted">(gui/)  Qt 6 Widgets + Concurrent</span>
+<span class="arch-bin">model-repair-gui</span>               <span class="arch-muted">(gui/)  Qt 6 Widgets + Concurrent + OpenGL</span>
 ├── MainWindow                 <span class="arch-muted">drag-drop, options checkboxes, Save As</span>
-├── RepairWorker               <span class="arch-muted">QObject on QThread — runs pipeline</span>
-└── ReportView                 <span class="arch-muted">QTreeWidget rendering RepairReport</span>
+├── RepairWorker               <span class="arch-muted">QObject on QThread — emits before+after mesh</span>
+├── ReportView                 <span class="arch-muted">QTreeWidget rendering RepairReport</span>
+├── PreviewWindow              <span class="arch-muted">side-by-side Before/After 3D window</span>
+└── MeshViewWidget             <span class="arch-muted">QOpenGLWidget — Phong shading, arcball camera</span>
 
 <span class="arch-dep">Dependencies (system packages)</span>
 ├── CGAL 6.x                   <span class="arch-muted">Polygon Mesh Processing — all repair ops</span>
 ├── Eigen3                     <span class="arch-muted">required by CGAL</span>
 ├── Boost / GMP / MPFR         <span class="arch-muted">required by CGAL</span>
-└── Qt 6 Widgets + Concurrent  <span class="arch-muted">GUI only</span>
+└── Qt 6 Widgets + Concurrent + OpenGL  <span class="arch-muted">GUI only</span>
 
 <span class="arch-dep">Dependencies (auto-fetched via FetchContent)</span>
 ├── lib3mf v2.4.1              <span class="arch-muted">3MF format — Apache-2.0</span>
