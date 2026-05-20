@@ -5,7 +5,7 @@ A native Linux 3D mesh repair tool — a drop-in replacement for the Windows-onl
 Ships as two frontends over a shared C++ library:
 
 - **`model-repair`** — command-line tool, scriptable and composable
-- **`model-repair-gui`** — Qt 6 desktop application with drag-and-drop and a per-step repair report
+- **`model-repair-gui`** — Qt 6 desktop application with drag-and-drop, a per-step repair report, and a side-by-side 3D Before/After preview
 
 Supported formats: **STL** (binary + ASCII), **OBJ**, **3MF**.
 
@@ -41,7 +41,7 @@ sudo pacman -S cgal eigen3 boost gmp mpfr qt6-base
 | `boost` | 1.74 | Required by CGAL |
 | `gmp` | any | Exact arithmetic kernel (CGAL) |
 | `mpfr` | any | Multi-precision floats (CGAL) |
-| `qt6-base` | 6.4 | GUI (Widgets + Concurrent modules) |
+| `qt6-base` | 6.4 | GUI (Widgets + Concurrent + OpenGL modules) |
 | `cmake` | 3.25 | Build system |
 | `git` | any | FetchContent dependency downloads |
 
@@ -140,8 +140,9 @@ cmake --build build/minimal -j$(nproc)
 1. Drop an STL / OBJ / 3MF file onto the drop zone, or click **Open file…**
 2. Adjust repair options if needed (all enabled by default)
 3. Click **Repair** — progress is shown per step in real time
-4. Review the per-step report at the bottom
-5. Click **Save As…** to export the repaired mesh
+4. A **Before / After 3D preview window** opens automatically when repair completes — rotate with left-drag, pan with right-drag, zoom with scroll wheel; both views are camera-synced
+5. Review the per-step report in the main window
+6. Click **Save As…** to export the repaired mesh
 
 ### CLI
 
@@ -299,6 +300,9 @@ libmodelrepair.so              (shared library — LGPL-safe via dynamic linking
 
 model-repair                   CLI frontend (links libmodelrepair)
 model-repair-gui               Qt 6 frontend (links libmodelrepair)
+├── MainWindow                 Main UI — options, progress, report
+├── PreviewWindow              Side-by-side Before/After 3D window
+└── MeshViewWidget             QOpenGLWidget — Phong shading, arcball camera
 ```
 
 The library is built as a shared object so CGAL's LGPL terms are satisfied by dynamic linking even if the frontends are distributed under a different license.
@@ -327,7 +331,9 @@ model-repair/
 ├── gui/                       Qt 6 application
 │   ├── MainWindow.cpp/.hpp
 │   ├── RepairWorker.cpp/.hpp  QThread wrapper for background repair
-│   └── ReportView.cpp/.hpp    QTreeWidget repair report display
+│   ├── ReportView.cpp/.hpp    QTreeWidget repair report display
+│   ├── PreviewWindow.cpp/.hpp Side-by-side Before/After 3D window
+│   └── MeshViewWidget.cpp/.hpp QOpenGLWidget with shared arcball camera
 └── tests/
     ├── generate_test_meshes.py
     ├── test_mesh_io.cpp

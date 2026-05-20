@@ -80,10 +80,15 @@ Each step file implements one private method of `RepairPipeline`. The order is a
 
 ### GUI (`gui/`)
 
-`RepairWorker` (QObject) runs on a `QThread`. It calls `modelrepair::io::load` then `RepairPipeline::run`, emitting `progressChanged` signals via `QMetaObject::invokeMethod(..., Qt::QueuedConnection)` to cross the thread boundary safely. `MainWindow` wires everything together; `ReportView` (QTreeWidget) renders the `RepairReport` after repair completes.
+`RepairWorker` (QObject) runs on a `QThread`. It captures a copy of the loaded mesh before calling `RepairPipeline::run` (which mutates the mesh in-place), then emits a four-argument `finished` signal carrying the `RepairReport`, the before-mesh, the after-mesh, and an error string. Progress signals cross the thread boundary via `QMetaObject::invokeMethod(..., Qt::QueuedConnection)`.
+
+`MainWindow` wires everything together; `ReportView` (QTreeWidget) renders the `RepairReport`. On success, `MainWindow` opens a `PreviewWindow` (non-modal, `WA_DeleteOnClose`).
+
+`PreviewWindow` shows a side-by-side Before/After 3D comparison. It owns copies of both meshes as value members. Each `MeshViewWidget` (QOpenGLWidget) renders one mesh using OpenGL 3.3 with flat-shaded Phong lighting (GLSL 3.30, flat triangle VBO with interleaved `[pos, normal]`). Both widgets share a single `std::shared_ptr<CameraState>` (rotation as QQuaternion, zoom, pan, scene_radius). When any camera-mutating mouse event fires the emitting widget calls `emit camera_changed()`; the peer is connected to that signal and calls `update()` — no mutex needed because both live in the main thread. Mouse controls: left-drag = arcball rotation, right-drag = XY pan, scroll = zoom.
 
 ## Known quirks
 
 - **CGAL version**: this repo targets CGAL 6.x (installed as `cgal` on Arch). The API differs from CGAL 5.x in several ways: `merge_duplicate_points_in_polygon_soup` (not `merge_duplicated_vertices_in_polygon_soup`), `non_manifold_vertices` outputs `halfedge_descriptor` not `vertex_descriptor`.
 - **lib3mf GCC 16 patch**: `cmake/patch_lib3mf_gcc16.cmake` is applied via `PATCH_COMMAND` in `FetchContent_Declare` and adds `#include <algorithm>` to six lib3mf source files that GCC 16 requires it in explicitly.
 - **Catch2 discovery**: `DISCOVERY_MODE PRE_TEST` is required because ASan makes the binary fail to start at CMake build-time (when Catch2 normally runs `--list-tests`).
+- **EGL / Wayland CoreProfile**: On Wayland with the NVIDIA proprietary driver (EGL backend), requesting an OpenGL CoreProfile or MSAA samples in `QSurfaceFormat` produces `EGL_BAD_ATTRIBUTE` (error 3009) and the `QOpenGLWidget` fails to create a context. `main.cpp` therefore requests only a 24-bit depth buffer — no profile, no MSAA. The OpenGL 3.3 GLSL shaders still work because the default EGL context provides 3.3+ compatibility.
