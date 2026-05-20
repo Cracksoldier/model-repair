@@ -24,7 +24,7 @@ if(MODELREPAIR_BUILD_CLI)
 endif()
 
 if(MODELREPAIR_BUILD_GUI)
-    find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets Concurrent)
+    find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets Concurrent OpenGL OpenGLWidgets)
     qt6_standard_project_setup()
     add_subdirectory(gui)
 endif()

@@ -6,6 +6,8 @@ add_executable(model-repair-gui
     MainWindow.cpp
     RepairWorker.cpp
     ReportView.cpp
+    MeshViewWidget.cpp
+    PreviewWindow.cpp
     resources.qrc
 )
 
@@ -14,6 +16,8 @@ target_link_libraries(model-repair-gui
         modelrepair
         Qt6::Widgets
         Qt6::Concurrent
+        Qt6::OpenGL
+        Qt6::OpenGLWidgets
         spdlog::spdlog
         modelrepair_warnings
 )

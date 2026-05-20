@@ -23,9 +23,11 @@ void RepairWorker::run()
     }
     catch (const std::exception& e)
     {
-        emit finished({}, {}, QString::fromStdString(e.what()));
+        emit finished({}, {}, {}, QString::fromStdString(e.what()));
         return;
     }
+
+    modelrepair::Mesh before_mesh = mesh;  // snapshot before in-place repair
 
     modelrepair::RepairPipeline pipeline(opts_);
 
@@ -46,11 +48,11 @@ void RepairWorker::run()
     }
     catch (const std::exception& e)
     {
-        emit finished({}, {}, QString::fromStdString(e.what()));
+        emit finished({}, {}, {}, QString::fromStdString(e.what()));
         return;
     }
 
-    emit finished(report, std::move(mesh), {});
+    emit finished(report, std::move(before_mesh), std::move(mesh), {});
 }
 
 } // namespace gui

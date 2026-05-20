@@ -1,4 +1,5 @@
 #include "MainWindow.hpp"
+#include "PreviewWindow.hpp"
 #include "RepairWorker.hpp"
 #include "ReportView.hpp"
 
@@ -149,6 +150,7 @@ void MainWindow::on_open_clicked()
 void MainWindow::set_input(const std::filesystem::path& path)
 {
     input_path_   = path;
+    before_mesh_.reset();
     repaired_mesh_.reset();
     btn_repair_->setEnabled(true);
     btn_save_->setEnabled(false);
@@ -205,7 +207,8 @@ void MainWindow::on_progress(int step, int total, const QString& name)
 }
 
 void MainWindow::on_repair_finished(modelrepair::RepairReport report,
-                                    modelrepair::Mesh mesh,
+                                    modelrepair::Mesh before_mesh,
+                                    modelrepair::Mesh after_mesh,
                                     QString error)
 {
     set_busy(false);
@@ -218,7 +221,8 @@ void MainWindow::on_repair_finished(modelrepair::RepairReport report,
         return;
     }
 
-    repaired_mesh_ = std::move(mesh);
+    before_mesh_   = std::move(before_mesh);
+    repaired_mesh_ = std::move(after_mesh);
     report_view_->set_report(report);
     progress_bar_->setValue(progress_bar_->maximum());
     status_label_->setText(
@@ -226,6 +230,10 @@ void MainWindow::on_repair_finished(modelrepair::RepairReport report,
             .arg(report.is_manifold_after ? "✓" : "✗")
             .arg(report.is_closed_after   ? "✓" : "✗"));
     btn_save_->setEnabled(true);
+
+    auto* preview = new PreviewWindow(*before_mesh_, *repaired_mesh_, this);
+    preview->setAttribute(Qt::WA_DeleteOnClose);
+    preview->show();
 }
 
 void MainWindow::on_save_clicked()

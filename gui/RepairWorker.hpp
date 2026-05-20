@@ -26,7 +26,8 @@ public slots:
 signals:
     void progressChanged(int step, int total, const QString& step_name);
     void finished(modelrepair::RepairReport report,
-                  modelrepair::Mesh mesh,
+                  modelrepair::Mesh before_mesh,
+                  modelrepair::Mesh after_mesh,
                   QString error);
 
 private:

@@ -41,7 +41,8 @@ private slots:
     void on_save_clicked();
     void on_progress(int step, int total, const QString& name);
     void on_repair_finished(modelrepair::RepairReport report,
-                            modelrepair::Mesh mesh,
+                            modelrepair::Mesh before_mesh,
+                            modelrepair::Mesh after_mesh,
                             QString error);
 
 private:
@@ -74,6 +75,7 @@ private:
 
     // State
     std::optional<std::filesystem::path> input_path_;
+    std::optional<modelrepair::Mesh>     before_mesh_;
     std::optional<modelrepair::Mesh>     repaired_mesh_;
 
     QThread* worker_thread_ = nullptr;
