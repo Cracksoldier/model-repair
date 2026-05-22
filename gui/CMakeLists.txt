@@ -4,6 +4,7 @@ set(CMAKE_AUTORCC ON)
 add_executable(model-repair-gui
     main.cpp
     MainWindow.cpp
+    BatchWindow.cpp
     RepairWorker.cpp
     ReportView.cpp
     MeshViewWidget.cpp

@@ -1,4 +1,5 @@
 #include "MainWindow.hpp"
+#include "BatchWindow.hpp"
 #include "PreviewWindow.hpp"
 #include "RepairWorker.hpp"
 #include "ReportView.hpp"
@@ -103,10 +104,18 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     btn_save_->setEnabled(false);
     btn_row->addWidget(btn_repair_);
     btn_row->addWidget(btn_save_);
+    auto* btn_batch = new QPushButton("Batch Repair…");
+    btn_row->addWidget(btn_batch);
     root->addLayout(btn_row);
 
     connect(btn_repair_, &QPushButton::clicked, this, &MainWindow::on_repair_clicked);
     connect(btn_save_,   &QPushButton::clicked, this, &MainWindow::on_save_clicked);
+    connect(btn_batch,   &QPushButton::clicked, this, [this]
+    {
+        auto* batch = new BatchWindow(collect_options(), this);
+        batch->setAttribute(Qt::WA_DeleteOnClose);
+        batch->show();
+    });
 
     // --- Progress ---
     progress_bar_ = new QProgressBar;
