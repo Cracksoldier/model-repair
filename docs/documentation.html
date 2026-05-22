@@ -33,7 +33,7 @@
     h2 { font-size: 1.5rem; font-weight: 600; line-height: 1.25; margin: 2.5rem 0 0.75rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
     h2:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
     h3 { font-size: 1.15rem; font-weight: 600; line-height: 1.25; margin: 2rem 0 0.5rem; color: var(--text); }
-    h4 { font-size: 0.95rem; font-weight: 600; margin: 1.25rem 0 0.4rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.78rem; }
+    h4 { font-weight: 600; margin: 1.25rem 0 0.4rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.78rem; }
     p { margin-bottom: 1rem; color: var(--text); }
     ul, ol { margin: 0 0 1rem 1.4rem; }
     li { margin-bottom: 0.3rem; }
@@ -665,9 +665,8 @@
       </table>
 
       <h3>Report output</h3>
-      <p><code>issues_found</code> = number of boundary cycles (holes) detected.<br>
-      <code>issues_fixed</code> = number of holes successfully filled. Holes skipped due to
-      <code>max_hole_edges</code> count as found but not fixed.</p>
+      <p><code>issues_found</code> = number of holes that were attempted (those passing the <code>max_hole_edges</code> filter). Holes skipped by the filter are not counted.<br>
+      <code>issues_fixed</code> = number of holes successfully filled.</p>
     </section>
 
     <!-- ── Step 6 ─────────────────────────────────────────────────────── -->
@@ -813,8 +812,7 @@
         <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
         <tbody>
           <tr><td><span class="exit-code exit-0">0</span></td><td>Success — output written.</td></tr>
-          <tr><td><span class="exit-code exit-err">1</span></td><td>Input file not found or unreadable.</td></tr>
-          <tr><td><span class="exit-code exit-err">2</span></td><td>Unsupported input or output file format.</td></tr>
+          <tr><td><span class="exit-code exit-err">1</span></td><td>Input file not found, unreadable, or unsupported format.</td></tr>
           <tr><td><span class="exit-code exit-err">3</span></td><td>Repair step threw an exception.</td></tr>
           <tr><td><span class="exit-code exit-err">4</span></td><td>Output write failed (bad path, disk full, report write error).</td></tr>
         </tbody>
@@ -1254,7 +1252,9 @@ modelrepair::io::save(mesh, <span class="str">"out.stl"</span>, <span class="val
   document.querySelectorAll('.copy-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const pre = btn.parentElement;
-      const text = pre.innerText.replace(/^copy\n?/, '');
+      const clone = pre.cloneNode(true);
+      clone.querySelector('.copy-btn')?.remove();
+      const text = clone.innerText;
       navigator.clipboard.writeText(text).then(() => {
         btn.textContent = 'copied!';
         btn.classList.add('copied');

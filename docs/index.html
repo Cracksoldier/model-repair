@@ -398,7 +398,9 @@
   document.querySelectorAll('.copy-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const pre = btn.parentElement;
-      const text = pre.innerText.replace(/^copy\n/, '').replace(/^copy/, '');
+      const clone = pre.cloneNode(true);
+      clone.querySelector('.copy-btn')?.remove();
+      const text = clone.innerText;
       navigator.clipboard.writeText(text).then(() => {
         btn.textContent = 'copied!';
         btn.classList.add('copied');
