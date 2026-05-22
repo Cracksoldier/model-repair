@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="6" fill="#161b22"/>
+  <!-- isometric cube: top / right / left faces -->
+  <polygon points="16,3 27,9 16,15 5,9" fill="#58a6ff"/>
+  <polygon points="27,9 27,21 16,27 16,15" fill="#2f81f7"/>
+  <polygon points="5,9 16,15 16,27 5,21" fill="#1963b5"/>
+  <!-- edge separators -->
+  <polyline points="16,3 27,9 27,21 16,27 5,21 5,9 16,3" fill="none" stroke="#161b22" stroke-width="0.8"/>
+  <line x1="16" y1="3"  x2="16" y2="15" stroke="#161b22" stroke-width="0.8"/>
+  <line x1="27" y1="9"  x2="16" y2="15" stroke="#161b22" stroke-width="0.8"/>
+  <line x1="5"  y1="9"  x2="16" y2="15" stroke="#161b22" stroke-width="0.8"/>
+</svg>
