@@ -46,6 +46,15 @@ The `Test_CPP_Bindings` test (lib3mf's own suite) is excluded by the test preset
 LD_LIBRARY_PATH=build/debug/src \
   build/debug/cli/model-repair INPUT.stl OUTPUT.stl --verbose
 
+# CLI — diagnose only (no OUTPUT required; mesh is not modified)
+LD_LIBRARY_PATH=build/debug/src \
+  build/debug/cli/model-repair broken.stl --diagnose --verbose
+
+# CLI — repair then decimate to 50 % of faces
+# Saves broken_repaired.stl (intermediate) and out.stl (decimated)
+LD_LIBRARY_PATH=build/debug/src \
+  build/debug/cli/model-repair broken.stl out.stl --decimate 0.5
+
 # GUI
 build/debug/gui/model-repair-gui
 ```
@@ -56,12 +65,13 @@ The codebase is split into a shared library, two frontends, and a test suite.
 
 ### `libmodelrepair` (`src/`, `include/modelrepair/`)
 
-The public API is three types:
-- **`RepairOptions`** — plain struct of booleans/values, one per pipeline step.
-- **`RepairPipeline`** — call `run(Mesh&)`, optionally set a `ProgressCallback` first.
-- **`RepairReport`** — returned by `run()`, contains a `StepReport` per step plus final mesh stats.
+The public API is three types plus a free function:
+- **`RepairOptions`** — plain struct of booleans/values, one per pipeline step. Additional fields: `diagnose_only` (run detection without modifying the mesh), `decimate` / `decimate_ratio` (post-repair polygon-count reduction).
+- **`RepairPipeline`** — call `run(Mesh&)`, optionally set a `ProgressCallback` first. When `opts.diagnose_only` is true, `run()` deep-copies the mesh, runs all steps on the copy, and returns a report without touching the original.
+- **`RepairReport`** — returned by `run()`, contains a `StepReport` per step plus final mesh stats. Fields added: `surface_area_before/after` (mm², always populated), `volume_before/after` (mm³, `std::optional` — nullopt when the mesh is not closed), `diagnose_only`.
+- **`decimate(Mesh&, double ratio)`** (`include/modelrepair/Decimate.hpp`, `src/repairs/Decimate.cpp`) — free function; reduces face count to `ratio` fraction using CGAL `Surface_mesh_simplification` (`Face_count_ratio_stop_predicate`). Returns `DecimateResult{faces_before, faces_after, duration_ms}`.
 
-`Mesh` is a thin wrapper around `CGAL::Surface_mesh<EPICK::Point_3>`. All repair steps work directly on `mesh.cgal()`.
+`Mesh` is a thin wrapper around `CGAL::Surface_mesh<EPICK::Point_3>`. All repair steps work directly on `mesh.cgal()`. New methods: `surface_area()` → `double` and `volume()` → `std::optional<double>` (wraps `PMP::area` / `PMP::volume`; volume returns nullopt when the mesh is not closed).
 
 ### Repair pipeline step ordering (`src/repairs/`)
 
@@ -83,9 +93,9 @@ Each step file implements one private method of `RepairPipeline`. The order is a
 
 ### GUI (`gui/`)
 
-`RepairWorker` (QObject) runs on a `QThread`. It captures a copy of the loaded mesh before calling `RepairPipeline::run` (which mutates the mesh in-place), then emits a four-argument `finished` signal carrying the `RepairReport`, the before-mesh, the after-mesh, and an error string. Progress signals cross the thread boundary via `QMetaObject::invokeMethod(..., Qt::QueuedConnection)`.
+`RepairWorker` (QObject) runs on a `QThread`. It captures a copy of the loaded mesh before calling `RepairPipeline::run` (which mutates the mesh in-place), then emits a four-argument `finished` signal carrying the `RepairReport`, the before-mesh, the after-mesh, and an error string. Progress signals cross the thread boundary via `QMetaObject::invokeMethod(..., Qt::QueuedConnection)`. After `pipeline.run()`, if `opts_.decimate` is true and the run was not diagnose-only, `RepairWorker` calls `decimate()` (wrapped in try/catch), appends a synthetic `StepReport`, and updates `report.triangles_after`, `surface_area_after`, and `volume_after`.
 
-`MainWindow` wires everything together; `ReportView` (QTreeWidget) renders the `RepairReport`. On success, `MainWindow` opens a `PreviewWindow` (non-modal, `WA_DeleteOnClose`). A **"Batch Repair…"** button in the main window opens a `BatchWindow` (non-modal, `WA_DeleteOnClose`) pre-populated with the current repair options.
+`MainWindow` wires everything together; `ReportView` (QTreeWidget) renders the `RepairReport`. The report's summary row shows vertex/triangle counts plus surface area and volume (when the mesh is closed). On success, `MainWindow` opens a `PreviewWindow` (non-modal, `WA_DeleteOnClose`). A **"Diagnose"** button runs the pipeline with `diagnose_only = true`; the result is shown in the report tree but `btn_save_` is disabled and no preview opens. A **"Decimate after repair"** checkbox + ratio spinbox (0.01–1.00, default 0.50) controls post-repair decimation. A **"Batch Repair…"** button opens a `BatchWindow` (non-modal, `WA_DeleteOnClose`) pre-populated with the current repair options.
 
 `BatchWindow` processes a list of files sequentially on a background `QThread` (one `RepairWorker` per file, reused). Files are added via drag-and-drop or "Add Files…". Output defaults to the same directory as the input with a `_repaired` filename suffix; an alternative output directory can be set with "Browse…". A table shows Filename / Status / Issues / Watertight / Time per file. "Preview Selected" opens a `PreviewWindow` for the selected completed job. The window cannot be closed while a repair is running (close event is ignored; click Cancel first).
 

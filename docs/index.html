@@ -219,7 +219,7 @@
       <div class="stat"><div class="stat-val">6</div><div class="stat-label">repair steps</div></div>
       <div class="stat"><div class="stat-val">4</div><div class="stat-label">file formats</div></div>
       <div class="stat"><div class="stat-val">2</div><div class="stat-label">frontends (CLI + GUI)</div></div>
-      <div class="stat"><div class="stat-val">17</div><div class="stat-label">automated tests</div></div>
+      <div class="stat"><div class="stat-val">21</div><div class="stat-label">automated tests</div></div>
     </div>
   </div>
 </section>
@@ -286,6 +286,27 @@
         <div class="feature-icon">📦</div>
         <h3>Batch Processing</h3>
         <p>Drop multiple files into the GUI batch window, set an output directory, and repair them all with one click.</p>
+        <span class="learn-more">Learn more →</span>
+      </a>
+
+      <a class="feature-card" href="documentation.html#diagnose">
+        <div class="feature-icon">🔍</div>
+        <h3>Diagnose Mode</h3>
+        <p>Run the full detection pipeline without modifying the mesh. Inspect every issue before deciding whether to repair. Available as <code>--diagnose</code> on the CLI and a dedicated button in the GUI.</p>
+        <span class="learn-more">Learn more →</span>
+      </a>
+
+      <a class="feature-card" href="documentation.html#stats">
+        <div class="feature-icon">📏</div>
+        <h3>Geometry Statistics</h3>
+        <p>Surface area (mm²) and volume (mm³) are computed before and after repair and shown in every report. Volume is reported only for closed (watertight) meshes.</p>
+        <span class="learn-more">Learn more →</span>
+      </a>
+
+      <a class="feature-card" href="documentation.html#decimate">
+        <div class="feature-icon">🔺</div>
+        <h3>Mesh Decimation</h3>
+        <p>Reduce polygon count after repair using CGAL Surface_mesh_simplification. The intermediate repaired mesh is saved automatically before decimation is applied.</p>
         <span class="learn-more">Learn more →</span>
       </a>
 

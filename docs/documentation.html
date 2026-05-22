@@ -260,6 +260,12 @@
       <a href="#step-self-intersections">6. Self-Intersections</a>
     </div>
     <div class="sidebar-section">
+      <div class="sidebar-section-label">Post-Repair</div>
+      <a href="#diagnose">Diagnose Mode</a>
+      <a href="#stats">Geometry Statistics</a>
+      <a href="#decimate">Mesh Decimation</a>
+    </div>
+    <div class="sidebar-section">
       <div class="sidebar-section-label">Reference</div>
       <a href="#cli">CLI Reference</a>
       <a href="#cli-options" class="sub">Options</a>
@@ -758,16 +764,161 @@
       they appear as <code>issues_found − issues_fixed</code>.</p>
     </section>
 
+    <!-- ── Post-repair ──────────────────────────────────────────────── -->
+    <section id="diagnose" class="anchor">
+      <h2>Diagnose Mode</h2>
+      <p>
+        Diagnose mode runs the full detection pipeline on a <em>copy</em> of the mesh and
+        returns a complete <code>RepairReport</code> without modifying the original.
+        Use it to audit a file before committing to a repair, or to compare multiple repair
+        configurations non-destructively.
+      </p>
+
+      <h3>CLI</h3>
+      <p>Pass <code>--diagnose</code>. <code>OUTPUT</code> is optional — if omitted, no file is written.</p>
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Inspect what would be repaired — no output file</span>
+<span class="cmd">model-repair</span> broken.stl <span class="flag">--diagnose</span> <span class="flag">--verbose</span>
+
+<span class="cmt"># Diagnose and write a machine-readable report</span>
+<span class="cmd">model-repair</span> broken.stl <span class="flag">--diagnose</span> <span class="flag">--report</span> diagnosis.json</pre>
+
+      <p>The text report header reads <code>=== Diagnosis (no changes saved) ===</code> instead of the usual repair header.</p>
+
+      <h3>GUI</h3>
+      <p>
+        Click <strong>Diagnose</strong> (next to the Repair button). The pipeline runs on a
+        background thread with <code>diagnose_only = true</code>; the report tree fills in
+        exactly as it would after a normal repair. The <strong>Save As…</strong> button
+        remains disabled — the original mesh on disk is unchanged.
+      </p>
+
+      <h3>API</h3>
+      <pre><span class="kw">using namespace</span> modelrepair;
+
+RepairOptions opts;
+opts.diagnose_only = <span class="val">true</span>;
+opts.remove_self_intersections = <span class="val">false</span>;   <span class="cmt">// skip slow step</span>
+
+Mesh mesh = io::load(<span class="str">"broken.stl"</span>);
+<span class="kw">const auto</span> v_before = mesh.num_vertices(); <span class="cmt">// snapshot</span>
+
+RepairReport report = RepairPipeline(opts).run(mesh);
+
+<span class="cmt">// mesh is unchanged</span>
+assert(mesh.num_vertices() == v_before);
+assert(report.diagnose_only == <span class="val">true</span>);</pre>
+
+      <div class="callout info">
+        <strong>Diagnose mode disables decimation automatically.</strong>
+        Even if <code>opts.decimate = true</code>, decimation is never applied when
+        <code>diagnose_only = true</code> — the mesh must not be modified.
+      </div>
+    </section>
+
+    <section id="stats" class="anchor">
+      <h2>Geometry Statistics</h2>
+      <p>
+        Surface area and volume are computed before and after every pipeline run and included
+        in all report outputs. They require no extra options — they are always present.
+      </p>
+
+      <table>
+        <thead><tr><th>Field</th><th class="td-type">Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>surface_area_before</code></td><td class="td-type">double</td><td>Surface area (mm²) before repair. Always populated.</td></tr>
+          <tr><td><code>surface_area_after</code></td><td class="td-type">double</td><td>Surface area (mm²) after repair. Updated again after decimation if decimation ran.</td></tr>
+          <tr><td><code>volume_before</code></td><td class="td-type">optional&lt;double&gt;</td><td>Volume (mm³) before repair. <code>nullopt</code> if the input mesh is not closed.</td></tr>
+          <tr><td><code>volume_after</code></td><td class="td-type">optional&lt;double&gt;</td><td>Volume (mm³) after repair. <code>nullopt</code> if the repaired mesh is still not closed.</td></tr>
+        </tbody>
+      </table>
+
+      <p>
+        The text report includes an <code>Area</code> line and, when at least one volume is
+        available, a <code>Volume</code> line:
+      </p>
+      <pre>  Area     : 1234.50 -&gt; 1234.50 mm²
+  Volume   : n/a -&gt; 1000.00 mm³</pre>
+
+      <p>In the GUI, the summary row of the report tree shows:</p>
+      <pre>V: 4016 → 4016   T: 12 → 12   ✓ watertight   Area: 600.0 mm²   Vol: 1000.0 mm³</pre>
+
+      <div class="callout tip">
+        <strong>Volume requires a watertight mesh.</strong>
+        <code>PMP::volume()</code> is only valid when the mesh has no boundary edges.
+        The pipeline reports <code>nullopt</code> (shown as <code>n/a</code>) for open meshes,
+        both before and after repair.
+      </div>
+    </section>
+
+    <section id="decimate" class="anchor">
+      <h2>Mesh Decimation</h2>
+      <p>
+        Decimation reduces the polygon count of the repaired mesh while preserving overall
+        shape. It runs <em>after</em> all six repair steps and is separate from the pipeline:
+        a clean, watertight mesh is always the intermediate product.
+      </p>
+
+      <h3>How it works</h3>
+      <p>
+        Decimation uses CGAL's <code>Surface_mesh_simplification::edge_collapse()</code>
+        with <code>Face_count_ratio_stop_predicate</code>. The stop predicate targets a
+        fraction of the original face count: <code>ratio = 0.5</code> keeps approximately
+        50 % of faces. The exact final count depends on mesh topology — the simplifier
+        may stop slightly above the target if further collapses would violate the manifold
+        constraint.
+      </p>
+
+      <h3>Intermediate save</h3>
+      <p>
+        When decimation is requested from the CLI, the fully-repaired mesh is automatically
+        saved to an intermediate file before decimation is applied:
+      </p>
+      <pre><span class="cmt"># Produces two files:</span>
+<span class="cmt">#   out_repaired.stl  — clean, watertight, full resolution</span>
+<span class="cmt">#   out.stl           — decimated to ~50 % of faces</span>
+<span class="cmd">model-repair</span> broken.stl out.stl <span class="flag">--decimate</span> <span class="val">0.5</span></pre>
+
+      <h3>CLI</h3>
+      <pre><span class="cmd">model-repair</span> broken.stl out.stl <span class="flag">--decimate</span> <span class="val">0.5</span>       <span class="cmt"># keep 50 % of faces</span>
+<span class="cmd">model-repair</span> broken.stl out.stl <span class="flag">--decimate</span> <span class="val">0.25</span>      <span class="cmt"># keep 25 % of faces</span></pre>
+      <p>The ratio must be in <code>[0.01, 1.0]</code>. Exit code <span class="exit-code exit-err">5</span> is returned if decimation throws an exception.</p>
+
+      <h3>GUI</h3>
+      <p>
+        Check <strong>Decimate after repair</strong> in the options panel, then set the
+        <strong>Retain fraction</strong> spinbox (0.01–1.00, default 0.50). The intermediate
+        repaired mesh is not saved automatically from the GUI — only the decimated result
+        is available via <strong>Save As…</strong>.
+      </p>
+
+      <h3>API</h3>
+      <pre><span class="kw">#include</span> <span class="str">"modelrepair/Decimate.hpp"</span>
+
+<span class="cmt">// Run repair first</span>
+RepairPipeline({}).run(mesh);
+
+<span class="cmt">// Then decimate</span>
+modelrepair::DecimateResult dr = modelrepair::decimate(mesh, <span class="val">0.5</span>);
+std::cout &lt;&lt; dr.faces_before &lt;&lt; <span class="str">" → "</span> &lt;&lt; dr.faces_after
+          &lt;&lt; <span class="str">" faces  ("</span> &lt;&lt; dr.duration_ms &lt;&lt; <span class="str">" ms)\n"</span>;</pre>
+
+      <div class="callout warn">
+        <strong><code>decimate()</code> can throw.</strong>
+        <code>SMS::edge_collapse()</code> may throw an exception on degenerate meshes.
+        Wrap the call in a try/catch if calling it from user code.
+      </div>
+    </section>
+
     <!-- ── CLI ───────────────────────────────────────────────────────── -->
     <section id="cli" class="anchor">
       <h2>CLI Reference</h2>
       <p>The CLI tool is built to <code>build/&lt;preset&gt;/cli/model-repair</code>.</p>
 
       <h3>Synopsis</h3>
-      <pre><span class="cmd">model-repair</span> <span class="val">INPUT OUTPUT</span> [<span class="flag">OPTIONS</span>]
+      <pre><span class="cmd">model-repair</span> <span class="val">INPUT</span> [<span class="val">OUTPUT</span>] [<span class="flag">OPTIONS</span>]
 
   <span class="val">INPUT</span>   Input mesh file (.stl, .obj, .3mf, .glb, .gltf) — must exist
-  <span class="val">OUTPUT</span>  Output mesh file (.stl, .obj, .3mf, .glb, .gltf) — format from extension</pre>
+  <span class="val">OUTPUT</span>  Output mesh file — required unless <span class="flag">--diagnose</span> is used</pre>
 
       <h3 id="cli-options" class="anchor">Options</h3>
 
@@ -784,6 +935,15 @@
           <tr><td><code>--max-hole-edges &lt;n&gt;</code></td><td>Fill only holes with ≤ N boundary edges. Default: <code class="td-default">0</code> (fill all).</td></tr>
           <tr><td><code>--flat-fill</code></td><td>Use flat fan triangulation for holes instead of smooth refinement.</td></tr>
           <tr><td><code>--no-remove-self-intersections</code></td><td>Skip step 6 (self-intersection removal). Recommended for large meshes when speed matters.</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Diagnose &amp; decimate</h4>
+      <table>
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>--diagnose</code></td><td>Run detection only — report issues without modifying the mesh. OUTPUT is optional.</td></tr>
+          <tr><td><code>--decimate &lt;ratio&gt;</code></td><td>After repair, reduce face count to this fraction of the repaired mesh (0.01–1.0). Saves an intermediate <code>*_repaired.*</code> file automatically.</td></tr>
         </tbody>
       </table>
 
@@ -812,10 +972,11 @@
       <table>
         <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
         <tbody>
-          <tr><td><span class="exit-code exit-0">0</span></td><td>Success — output written.</td></tr>
-          <tr><td><span class="exit-code exit-err">1</span></td><td>Input file not found, unreadable, or unsupported format.</td></tr>
+          <tr><td><span class="exit-code exit-0">0</span></td><td>Success — output written (or diagnose completed).</td></tr>
+          <tr><td><span class="exit-code exit-err">1</span></td><td>Input file not found, unreadable, or unsupported format; or OUTPUT omitted without --diagnose.</td></tr>
           <tr><td><span class="exit-code exit-err">3</span></td><td>Repair step threw an exception.</td></tr>
           <tr><td><span class="exit-code exit-err">4</span></td><td>Output write failed (bad path, disk full, report write error).</td></tr>
+          <tr><td><span class="exit-code exit-err">5</span></td><td>Decimation threw an exception (mesh topology incompatible with simplification).</td></tr>
         </tbody>
       </table>
 
@@ -840,6 +1001,13 @@
 <span class="cmd">model-repair</span> in.stl out.stl <span class="flag">--report</span> report.json <span class="flag">--quiet</span>
 <span class="cmt"># read report.json for detailed per-step stats</span></pre>
 
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Diagnose only — no output file written, mesh untouched</span>
+<span class="cmd">model-repair</span> broken.stl <span class="flag">--diagnose</span> <span class="flag">--verbose</span></pre>
+
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Repair + decimate to 50 % of faces</span>
+<span class="cmt"># → saves out_repaired.stl (full resolution) and out.stl (decimated)</span>
+<span class="cmd">model-repair</span> broken.stl out.stl <span class="flag">--decimate</span> <span class="val">0.5</span></pre>
+
       <h3 id="cli-report" class="anchor">Report format</h3>
       <p>The text report (default stdout) looks like this:</p>
       <pre><span class="ok">Repair Report</span>
@@ -857,13 +1025,18 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
 
       <p>The JSON report (<code>--report-format json</code> or <code>--report path.json</code>) schema:</p>
       <pre>{
-  <span class="str">"vertices_before"</span>:  <span class="val">12048</span>,
-  <span class="str">"triangles_before"</span>: <span class="val">4016</span>,
-  <span class="str">"vertices_after"</span>:   <span class="val">4016</span>,
-  <span class="str">"triangles_after"</span>:  <span class="val">4029</span>,
-  <span class="str">"is_valid_after"</span>:    <span class="val">true</span>,
-  <span class="str">"is_manifold_after"</span>: <span class="val">true</span>,
-  <span class="str">"is_closed_after"</span>:   <span class="val">true</span>,
+  <span class="str">"vertices_before"</span>:       <span class="val">12048</span>,
+  <span class="str">"triangles_before"</span>:      <span class="val">4016</span>,
+  <span class="str">"vertices_after"</span>:        <span class="val">4016</span>,
+  <span class="str">"triangles_after"</span>:       <span class="val">4029</span>,
+  <span class="str">"surface_area_before"</span>:   <span class="val">600.000000</span>,
+  <span class="str">"surface_area_after"</span>:    <span class="val">600.000000</span>,
+  <span class="str">"volume_before"</span>:         <span class="val">1000.000000</span>,  <span class="cmt">// omitted if not closed</span>
+  <span class="str">"volume_after"</span>:          <span class="val">1000.000000</span>,  <span class="cmt">// omitted if not closed</span>
+  <span class="str">"is_valid_after"</span>:         <span class="val">true</span>,
+  <span class="str">"is_manifold_after"</span>:      <span class="val">true</span>,
+  <span class="str">"is_closed_after"</span>:        <span class="val">true</span>,
+  <span class="str">"diagnose_only"</span>:          <span class="val">false</span>,
   <span class="str">"steps"</span>: [
     {
       <span class="str">"name"</span>:         <span class="val">"Merge vertices"</span>,
@@ -872,7 +1045,7 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
       <span class="str">"issues_fixed"</span>: <span class="val">8032</span>,
       <span class="str">"duration_ms"</span>:  <span class="val">2.1</span>
     },
-    <span class="cmt">// ... one entry per step</span>
+    <span class="cmt">// ... one entry per step; Decimate appended if decimation ran</span>
   ]
 }</pre>
     </section>
@@ -909,6 +1082,8 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
           <tr><td>Max hole edges (spinbox)</td><td><code>max_hole_edges</code></td><td>0 (all)</td></tr>
           <tr><td>Smooth fill ☑ (under Fill holes)</td><td><code>fill_holes_smooth</code></td><td>On</td></tr>
           <tr><td>Remove self-intersections (slow) ☑</td><td><code>remove_self_intersections</code></td><td>On</td></tr>
+          <tr><td>Decimate after repair ☐</td><td><code>decimate</code></td><td>Off</td></tr>
+          <tr><td>Retain fraction (spinbox, enabled when Decimate ☑)</td><td><code>decimate_ratio</code></td><td>0.50</td></tr>
         </tbody>
       </table>
 
@@ -918,17 +1093,29 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
         (<code>RepairWorker</code> on a <code>QThread</code>) so the UI stays responsive.
         A progress bar shows which step is currently running (e.g., "3/6 Fix non-manifold").
         The report tree below it fills in per-step results as each step completes.
+        If <strong>Decimate after repair</strong> is enabled, a "Decimate" row is appended
+        to the tree after the six repair steps.
       </p>
       <p>
-        On success, the <a href="#gui-preview">3D Preview Window</a> opens automatically.
-        On failure, an error message is shown in the status bar.
+        On success, the <a href="#gui-preview">3D Preview Window</a> opens automatically
+        showing the before/after comparison (the "after" mesh is the decimated version when
+        decimation is enabled). On failure, an error message is shown in the status bar.
+      </p>
+
+      <h4>Diagnose</h4>
+      <p>
+        Click <strong>Diagnose</strong> to run the pipeline without modifying the mesh.
+        The report tree fills in exactly as after a normal repair, showing what <em>would</em>
+        be changed. The <strong>Save As…</strong> button is not enabled after a diagnosis run
+        and no preview window opens — the original file on disk is untouched.
       </p>
 
       <h4>Saving the result</h4>
       <p>
-        Click <strong>Save…</strong> to open a save dialog. The output format is determined
+        Click <strong>Save As…</strong> to open a save dialog. The output format is determined
         by the file extension you choose (.stl writes binary STL, .obj writes OBJ, .3mf writes 3MF,
         .glb writes binary glTF, .gltf writes text glTF).
+        The saved mesh is the decimated version if decimation was enabled.
       </p>
 
       <h3 id="gui-preview" class="anchor">3D Preview Window</h3>
@@ -1020,7 +1207,7 @@ pipeline.set_progress_callback(
         std::cout &lt;&lt; step &lt;&lt; <span class="str">"/"</span> &lt;&lt; total &lt;&lt; <span class="str">" "</span> &lt;&lt; name &lt;&lt; <span class="str">"\n"</span>;
     });
 
-RepairReport report = pipeline.run(mesh);   <span class="cmt">// mutates mesh in-place</span>
+RepairReport report = pipeline.run(mesh);   <span class="cmt">// mutates mesh in-place (unless diagnose_only)</span>
 
 <span class="cmt">// 4. Inspect results</span>
 std::cout &lt;&lt; report.format_text();
@@ -1041,6 +1228,9 @@ std::cout &lt;&lt; report.format_text();
           <tr><td><code>max_hole_edges</code></td><td class="td-type">size_t</td><td class="td-default">0</td><td>Skip holes with more than N edges (0 = no limit).</td></tr>
           <tr><td><code>fill_holes_smooth</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Smooth refine (true) vs flat fan (false) for hole fill.</td></tr>
           <tr><td><code>remove_self_intersections</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Run step 6 (slow, uses EPECK).</td></tr>
+          <tr><td><code>diagnose_only</code></td><td class="td-type">bool</td><td class="td-default">false</td><td>Run detection on a mesh copy; original is unchanged. See <a href="#diagnose">Diagnose Mode</a>.</td></tr>
+          <tr><td><code>decimate</code></td><td class="td-type">bool</td><td class="td-default">false</td><td>Apply post-repair decimation. Ignored when <code>diagnose_only</code> is true.</td></tr>
+          <tr><td><code>decimate_ratio</code></td><td class="td-type">double</td><td class="td-default">0.5</td><td>Target fraction of faces to retain after decimation (0.01–1.0).</td></tr>
           <tr><td><code>verbose</code></td><td class="td-type">bool</td><td class="td-default">false</td><td>Enable verbose logging inside the pipeline.</td></tr>
         </tbody>
       </table>
@@ -1054,8 +1244,11 @@ std::cout &lt;&lt; report.format_text();
           <tr><td><code>is_valid_after</code></td><td class="td-type">bool</td><td>CGAL combinatorial validity check passed.</td></tr>
           <tr><td><code>is_manifold_after</code></td><td class="td-type">bool</td><td>No non-manifold edges or vertices remain.</td></tr>
           <tr><td><code>is_closed_after</code></td><td class="td-type">bool</td><td>No boundary edges — mesh is watertight.</td></tr>
-          <tr><td><code>steps</code></td><td class="td-type">vector&lt;StepReport&gt;</td><td>One entry per repair step in order.</td></tr>
-          <tr><td><code>format_text()</code></td><td class="td-type">string</td><td>Human-readable multi-line report.</td></tr>
+          <tr><td><code>surface_area_before / after</code></td><td class="td-type">double</td><td>Surface area in mm². Always populated. Updated after decimation.</td></tr>
+          <tr><td><code>volume_before / after</code></td><td class="td-type">optional&lt;double&gt;</td><td>Volume in mm³. <code>nullopt</code> when the mesh is not closed. Updated after decimation.</td></tr>
+          <tr><td><code>diagnose_only</code></td><td class="td-type">bool</td><td><code>true</code> when the run was diagnose-only — the original mesh was not modified.</td></tr>
+          <tr><td><code>steps</code></td><td class="td-type">vector&lt;StepReport&gt;</td><td>One entry per repair step in order. A "Decimate" entry is appended when decimation ran.</td></tr>
+          <tr><td><code>format_text()</code></td><td class="td-type">string</td><td>Human-readable multi-line report including area and volume lines.</td></tr>
           <tr><td><code>format_json()</code></td><td class="td-type">string</td><td>JSON report string.</td></tr>
         </tbody>
       </table>
@@ -1070,6 +1263,8 @@ std::cout &lt;&lt; report.format_text();
           <tr><td><code>is_valid()</code></td><td class="td-type">bool</td><td>CGAL combinatorial validity.</td></tr>
           <tr><td><code>is_closed()</code></td><td class="td-type">bool</td><td>No boundary halfedges (watertight).</td></tr>
           <tr><td><code>is_manifold()</code></td><td class="td-type">bool</td><td>All edges shared by exactly 2 faces.</td></tr>
+          <tr><td><code>surface_area()</code></td><td class="td-type">double</td><td>Surface area via <code>PMP::area()</code>. Always valid.</td></tr>
+          <tr><td><code>volume()</code></td><td class="td-type">optional&lt;double&gt;</td><td>Volume via <code>PMP::volume()</code>. Returns <code>nullopt</code> when the mesh is not closed.</td></tr>
           <tr><td><code>cgal()</code></td><td class="td-type">CGAL::Surface_mesh&amp;</td><td>Direct access to the underlying CGAL mesh for advanced operations.</td></tr>
         </tbody>
       </table>
@@ -1084,6 +1279,21 @@ modelrepair::io::save(mesh, <span class="str">"out.glb"</span>);           <span
         Per-format headers (<code>modelrepair/io/StlIO.hpp</code>, <code>ObjIO.hpp</code>,
         <code>ThreeMFIO.hpp</code>, <code>GlbIO.hpp</code>) are also available for direct use.
       </p>
+
+      <h3>Decimate free function</h3>
+      <pre><span class="kw">#include</span> <span class="str">"modelrepair/Decimate.hpp"</span>
+
+<span class="cmt">// DecimateResult fields: faces_before, faces_after, duration_ms</span>
+modelrepair::DecimateResult modelrepair::decimate(Mesh&amp; mesh, <span class="kw">double</span> ratio);</pre>
+      <table>
+        <thead><tr><th>Field</th><th class="td-type">Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>faces_before</code></td><td class="td-type">size_t</td><td>Face count before decimation.</td></tr>
+          <tr><td><code>faces_after</code></td><td class="td-type">size_t</td><td>Face count after decimation.</td></tr>
+          <tr><td><code>duration_ms</code></td><td class="td-type">double</td><td>Wall-clock time for the simplification.</td></tr>
+        </tbody>
+      </table>
+      <p>May throw <code>std::exception</code>. Wrap in try/catch in production code.</p>
 
       <h3>CMake integration</h3>
       <pre><span class="cmt"># In your CMakeLists.txt</span>
