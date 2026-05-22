@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Documentation — model-repair</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0d1117;
+      --bg2:     #161b22;
+      --bg3:     #21262d;
+      --border:  #30363d;
+      --text:    #e6edf3;
+      --muted:   #8b949e;
+      --accent:  #2f81f7;
+      --green:   #3fb950;
+      --orange:  #d29922;
+      --red:     #f85149;
+      --purple:  #d2a8ff;
+      --radius:  8px;
+      --mono:    'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      --sans:    -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      --sidebar: 240px;
+    }
+
+    html { scroll-behavior: smooth; }
+    body { font-family: var(--sans); background: var(--bg); color: var(--text); line-height: 1.7; font-size: 16px; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    h1 { font-size: 2rem; font-weight: 700; line-height: 1.2; margin-bottom: 0.75rem; }
+    h2 { font-size: 1.5rem; font-weight: 600; line-height: 1.25; margin: 2.5rem 0 0.75rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+    h2:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
+    h3 { font-size: 1.15rem; font-weight: 600; line-height: 1.25; margin: 2rem 0 0.5rem; color: var(--text); }
+    h4 { font-size: 0.95rem; font-weight: 600; margin: 1.25rem 0 0.4rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.78rem; }
+    p { margin-bottom: 1rem; color: var(--text); }
+    ul, ol { margin: 0 0 1rem 1.4rem; }
+    li { margin-bottom: 0.3rem; }
+    li p { margin-bottom: 0; }
+    strong { color: var(--text); font-weight: 600; }
+    code {
+      font-family: var(--mono); font-size: 0.875em;
+      background: var(--bg3); border: 1px solid var(--border);
+      padding: 1px 6px; border-radius: 4px; color: #a5d6ff;
+    }
+    pre {
+      background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px 20px; overflow-x: auto; font-family: var(--mono); font-size: 0.875rem;
+      line-height: 1.6; margin: 0.75rem 0 1.25rem; position: relative;
+    }
+    pre code { background: none; border: none; padding: 0; font-size: inherit; color: inherit; }
+
+    /* Syntax colours */
+    .cmd  { color: #79c0ff; }
+    .cmt  { color: var(--muted); font-style: italic; }
+    .kw   { color: #ff7b72; }
+    .str  { color: #a5d6ff; }
+    .flag { color: var(--purple); }
+    .val  { color: #ffa657; }
+    .ok   { color: var(--green); }
+    .type { color: var(--orange); }
+
+    /* Copy button */
+    .copy-btn {
+      position: absolute; top: 8px; right: 8px; background: var(--bg2);
+      border: 1px solid var(--border); color: var(--muted); font-size: 0.75rem;
+      padding: 3px 8px; border-radius: 5px; cursor: pointer; font-family: var(--sans);
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .copy-btn:hover { color: var(--text); border-color: var(--accent); }
+    .copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+    /* Nav */
+    nav.topnav {
+      position: sticky; top: 0; z-index: 200;
+      background: rgba(13,17,23,0.95); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border); height: 52px;
+      display: flex; align-items: center;
+    }
+    .topnav-inner {
+      max-width: 1280px; margin: 0 auto; padding: 0 24px;
+      display: flex; align-items: center; gap: 24px; width: 100%;
+    }
+    .topnav-home {
+      font-family: var(--mono); font-size: 0.875rem; color: var(--muted);
+      white-space: nowrap; display: flex; align-items: center; gap: 6px;
+    }
+    .topnav-home:hover { color: var(--text); text-decoration: none; }
+    .topnav-sep { color: var(--border); }
+    .topnav-title { font-size: 0.875rem; font-weight: 600; color: var(--text); }
+    .topnav-gh {
+      margin-left: auto; display: flex; align-items: center; gap: 6px;
+      font-size: 0.8rem; color: var(--muted); border: 1px solid var(--border);
+      padding: 4px 10px; border-radius: var(--radius);
+    }
+    .topnav-gh:hover { border-color: var(--accent); color: var(--text); text-decoration: none; }
+
+    /* Layout */
+    .doc-layout {
+      max-width: 1280px; margin: 0 auto;
+      display: grid; grid-template-columns: var(--sidebar) 1fr;
+      min-height: calc(100vh - 52px);
+    }
+
+    /* Sidebar */
+    aside {
+      border-right: 1px solid var(--border); padding: 24px 0;
+      position: sticky; top: 52px; height: calc(100vh - 52px); overflow-y: auto;
+    }
+    .sidebar-section { margin-bottom: 24px; }
+    .sidebar-section-label {
+      font-size: 0.7rem; font-weight: 600; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--muted); padding: 0 20px 6px;
+    }
+    .sidebar-section a {
+      display: block; padding: 5px 20px; font-size: 0.825rem; color: var(--muted);
+      transition: color 0.12s, background 0.12s; border-left: 2px solid transparent;
+    }
+    .sidebar-section a:hover { color: var(--text); text-decoration: none; background: var(--bg2); }
+    .sidebar-section a.active { color: var(--accent); border-left-color: var(--accent); background: rgba(47,129,247,0.07); }
+    .sidebar-section a.sub { padding-left: 34px; font-size: 0.8rem; }
+
+    /* Content */
+    main { padding: 40px 48px 80px; min-width: 0; }
+
+    /* Callout boxes */
+    .callout {
+      border-radius: var(--radius); padding: 14px 18px; margin: 1rem 0 1.25rem;
+      border-left: 3px solid; font-size: 0.9rem;
+    }
+    .callout.info    { background: rgba(47,129,247,0.08); border-color: var(--accent); }
+    .callout.warn    { background: rgba(210,153,34,0.08); border-color: var(--orange); }
+    .callout.tip     { background: rgba(63,185,80,0.08);  border-color: var(--green);  }
+    .callout.danger  { background: rgba(248,81,73,0.08);  border-color: var(--red);    }
+    .callout strong  { display: block; margin-bottom: 4px; }
+
+    /* Step header */
+    .step-header {
+      display: flex; align-items: center; gap: 14px; margin-bottom: 1.25rem;
+      padding: 18px 20px; background: var(--bg2); border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .step-num {
+      flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%;
+      background: var(--accent); color: #fff; font-weight: 700;
+      font-size: 1rem; display: flex; align-items: center; justify-content: center;
+    }
+    .step-header h3 { margin: 0; font-size: 1.2rem; }
+    .step-header .step-tag {
+      margin-left: auto; font-size: 0.75rem; background: var(--bg3);
+      border: 1px solid var(--border); padding: 3px 8px; border-radius: 4px;
+      font-family: var(--mono); color: var(--muted);
+    }
+
+    /* Options table */
+    table { width: 100%; border-collapse: collapse; margin: 0.75rem 0 1.25rem; font-size: 0.875rem; }
+    th { text-align: left; padding: 8px 12px; background: var(--bg3); border: 1px solid var(--border); font-weight: 600; color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    td { padding: 8px 12px; border: 1px solid var(--border); vertical-align: top; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    td code { font-size: 0.82em; }
+    .td-default { font-family: var(--mono); font-size: 0.82em; color: var(--orange); }
+    .td-type    { font-family: var(--mono); font-size: 0.82em; color: var(--green); }
+
+    /* Pipeline diagram */
+    .pipeline-diagram {
+      display: flex; flex-direction: column; gap: 0;
+      position: relative; margin: 1.5rem 0;
+    }
+    .pipeline-diagram::before {
+      content: ''; position: absolute; left: 19px; top: 20px; bottom: 20px;
+      width: 2px; background: var(--border);
+    }
+    .pipe-step {
+      display: flex; gap: 16px; align-items: flex-start;
+      padding: 12px 0; position: relative;
+    }
+    .pipe-num {
+      flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%;
+      background: var(--bg3); border: 2px solid var(--border);
+      color: var(--accent); font-weight: 700; font-size: 0.9rem;
+      display: flex; align-items: center; justify-content: center; z-index: 1;
+    }
+    .pipe-body { padding-top: 8px; }
+    .pipe-body strong { font-size: 0.95rem; }
+    .pipe-body span { font-size: 0.85rem; color: var(--muted); display: block; }
+
+    /* Exit codes */
+    .exit-code { font-family: var(--mono); font-weight: 700; }
+    .exit-0  { color: var(--green); }
+    .exit-err { color: var(--red); }
+
+    /* Kbd */
+    kbd {
+      display: inline-block; padding: 2px 7px; font-family: var(--mono); font-size: 0.8em;
+      background: var(--bg3); border: 1px solid var(--border); border-radius: 4px;
+      color: var(--text); box-shadow: 0 1px 0 var(--border);
+    }
+
+    /* TOC anchor offset */
+    .anchor { scroll-margin-top: 70px; }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border); padding: 32px 48px;
+      font-size: 0.85rem; color: var(--muted);
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    }
+    .footer-links { display: flex; gap: 20px; }
+    .footer-links a { color: var(--muted); }
+    .footer-links a:hover { color: var(--text); }
+
+    /* Responsive */
+    @media (max-width: 860px) {
+      .doc-layout { grid-template-columns: 1fr; }
+      aside { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); padding: 16px 0; overflow-y: visible; }
+      aside .sidebar-section { display: inline-flex; flex-wrap: wrap; gap: 0; margin-bottom: 0; }
+      aside .sidebar-section-label { display: none; }
+      aside .sidebar-section a { padding: 6px 14px; border-left: none; border-bottom: 2px solid transparent; white-space: nowrap; }
+      aside .sidebar-section a.sub { display: none; }
+      main { padding: 24px 20px 60px; }
+      footer { padding: 24px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="topnav-inner">
+    <a class="topnav-home" href="index.html">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M6.906.664a1.749 1.749 0 012.187 0l5.25 4.2c.415.332.657.835.657 1.367v7.019A1.75 1.75 0 0113.25 15h-3.5a.75.75 0 01-.75-.75V9H7v5.25a.75.75 0 01-.75.75h-3.5A1.75 1.75 0 011 13.25V6.23c0-.531.242-1.034.657-1.366l5.25-4.2z"/></svg>
+      model-repair
+    </a>
+    <span class="topnav-sep">/</span>
+    <span class="topnav-title">Documentation</span>
+    <a class="topnav-gh" href="https://github.com/Cracksoldier/model-repair" target="_blank" rel="noopener">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.484 2 12.021c0 4.428 2.865 8.184 6.839 9.504.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844a9.59 9.59 0 012.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0022 12.021C22 6.484 17.522 2 12 2z"/></svg>
+      GitHub
+    </a>
+  </div>
+</nav>
+
+<div class="doc-layout">
+
+  <!-- Sidebar -->
+  <aside id="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Getting Started</div>
+      <a href="#overview">Overview</a>
+      <a href="#pipeline" class="sub">The Repair Pipeline</a>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Repair Steps</div>
+      <a href="#step-merge">1. Merge Duplicate Vertices</a>
+      <a href="#step-degenerate">2. Degenerate Triangles</a>
+      <a href="#step-nonmanifold">3. Non-Manifold Geometry</a>
+      <a href="#step-normals">4. Fix Face Normals</a>
+      <a href="#step-holes">5. Fill Holes</a>
+      <a href="#step-self-intersections">6. Self-Intersections</a>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Reference</div>
+      <a href="#cli">CLI Reference</a>
+      <a href="#cli-options" class="sub">Options</a>
+      <a href="#cli-examples" class="sub">Examples</a>
+      <a href="#cli-report" class="sub">Report format</a>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">GUI</div>
+      <a href="#gui">GUI Guide</a>
+      <a href="#gui-main" class="sub">Main Window</a>
+      <a href="#gui-preview" class="sub">3D Preview</a>
+      <a href="#gui-batch" class="sub">Batch Processing</a>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">For Developers</div>
+      <a href="#api">Library API</a>
+      <a href="#formats">File Formats</a>
+      <a href="#architecture">Architecture</a>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main>
+
+    <!-- ── Overview ──────────────────────────────────────────────────── -->
+    <section id="overview" class="anchor">
+      <h1>model-repair Documentation</h1>
+      <p>
+        <strong>model-repair</strong> is a Linux 3D mesh repair tool built on
+        <a href="https://www.cgal.org/" target="_blank" rel="noopener">CGAL</a>.
+        It automatically detects and fixes the six most common mesh defects that prevent
+        3D printing, boolean operations, and FEM analysis from working correctly.
+      </p>
+      <p>
+        The tool ships as a shared library (<code>libmodelrepair.so</code>) with two frontends:
+        a CLI for scripting and a Qt 6 GUI for interactive use. All repair logic lives in
+        the library — the frontends are thin wrappers.
+      </p>
+
+      <h2 id="pipeline" class="anchor">The Repair Pipeline</h2>
+      <p>
+        Steps run in a fixed order. Each step is a <em>precondition</em> for the next:
+        you cannot reliably detect non-manifold vertices in a soup of unconnected triangles,
+        and hole-filling on a mesh with degenerate faces produces garbage. Skipping a step
+        via a flag propagates through all later steps.
+      </p>
+
+      <div class="pipeline-diagram">
+        <div class="pipe-step">
+          <div class="pipe-num">1</div>
+          <div class="pipe-body"><strong>Merge Duplicate Vertices</strong><span>Convert raw triangle soup → shared-vertex half-edge mesh</span></div>
+        </div>
+        <div class="pipe-step">
+          <div class="pipe-num">2</div>
+          <div class="pipe-body"><strong>Remove Degenerate Triangles</strong><span>Delete zero-area faces before topology analysis</span></div>
+        </div>
+        <div class="pipe-step">
+          <div class="pipe-num">3</div>
+          <div class="pipe-body"><strong>Fix Non-Manifold Geometry</strong><span>Split vertices where more than two faces share an edge</span></div>
+        </div>
+        <div class="pipe-step">
+          <div class="pipe-num">4</div>
+          <div class="pipe-body"><strong>Fix Face Normals</strong><span>Re-orient winding order so all faces point outward</span></div>
+        </div>
+        <div class="pipe-step">
+          <div class="pipe-num">5</div>
+          <div class="pipe-body"><strong>Fill Holes</strong><span>Triangulate open boundary cycles</span></div>
+        </div>
+        <div class="pipe-step">
+          <div class="pipe-num">6</div>
+          <div class="pipe-body"><strong>Remove Self-Intersections</strong><span>Heal overlapping triangles with exact arithmetic (slow)</span></div>
+        </div>
+      </div>
+
+      <div class="callout info">
+        <strong>All steps enabled by default.</strong>
+        Disable individual steps with <code>--no-&lt;step&gt;</code> flags on the CLI,
+        or by unchecking options in the GUI. See the <a href="#cli">CLI Reference</a> for the full list.
+      </div>
+    </section>
+
+    <!-- ── Step 1 ─────────────────────────────────────────────────────── -->
+    <section id="step-merge" class="anchor">
+      <h2>Step 1 — Merge Duplicate Vertices</h2>
+
+      <div class="step-header">
+        <div class="step-num">1</div>
+        <div>
+          <h3 style="margin:0">Merge Duplicate Vertices</h3>
+          <span style="font-size:0.85rem;color:var(--muted);">Always runs first — required for all subsequent steps</span>
+        </div>
+        <span class="step-tag">CGAL EPICK</span>
+      </div>
+
+      <h3>What it fixes</h3>
+      <p>
+        Every common mesh format stores triangles as independent triplets of points.
+        An STL file for a 1000-triangle sphere contains exactly 3 000 point records —
+        one per triangle corner — even though most of those points are geometrically identical.
+        There is no vertex sharing: each triangle is completely isolated from its neighbours.
+      </p>
+      <p>
+        CGAL's half-edge data structure (<code>Surface_mesh</code>) requires a proper
+        <em>shared-vertex</em> representation where adjacent triangles reference the same
+        vertex objects. Without this, there are no topological edges, no notion of
+        "which faces surround this vertex", and none of the later repair steps can function.
+      </p>
+      <p>
+        This step also removes <strong>degenerate polygons</strong> that appear during merging:
+        if two corners of a triangle turn out to be the same point after merging,
+        the triangle has fewer than three distinct vertices and is discarded.
+        Duplicate polygons (identical vertex sets) are also eliminated.
+      </p>
+
+      <h3>How it works</h3>
+      <p>The implementation uses three CGAL polygon-soup utilities in sequence:</p>
+      <ol>
+        <li>
+          <strong><code>PMP::repair_polygon_soup()</code></strong> — merges points within
+          <code>merge_tolerance</code> of each other and removes degenerate/duplicate polygons.
+          This is the core merging step.
+        </li>
+        <li>
+          <strong><code>PMP::orient_polygon_soup()</code></strong> — propagates a consistent
+          winding order across the soup. Some faces may already disagree; this makes them
+          consistent before constructing the half-edge structure.
+        </li>
+        <li>
+          <strong><code>PMP::polygon_soup_to_polygon_mesh()</code></strong> — constructs the
+          <code>CGAL::Surface_mesh</code> half-edge data structure from the now-clean soup.
+        </li>
+      </ol>
+
+      <div class="callout warn">
+        <strong>STL files always report merges.</strong>
+        Because STL has no vertex sharing at all, every triangle contributes 3 new points.
+        A clean, correct STL sphere with 1 000 triangles will show ~2 000 merges —
+        this is normal, not a sign of a broken file.
+      </div>
+
+      <h3>Options</h3>
+      <table>
+        <thead><tr><th>RepairOptions field</th><th>CLI flag</th><th class="td-type">Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>merge_duplicate_vertices</code></td><td><code>--no-merge-vertices</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Enable/disable this entire step. Disabling also effectively disables all later steps.</td></tr>
+          <tr><td><code>merge_tolerance</code></td><td><code>--merge-tolerance &lt;f&gt;</code></td><td class="td-type">double</td><td class="td-default">1e-6</td><td>Maximum distance between two points that are considered the same vertex. In model units (usually mm).</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Report output</h3>
+      <p><code>issues_found</code> = total number of input points before merging.<br>
+      <code>issues_fixed</code> = number of points eliminated (input count minus final vertex count).</p>
+    </section>
+
+    <!-- ── Step 2 ─────────────────────────────────────────────────────── -->
+    <section id="step-degenerate" class="anchor">
+      <h2>Step 2 — Remove Degenerate Triangles</h2>
+
+      <div class="step-header">
+        <div class="step-num">2</div>
+        <div>
+          <h3 style="margin:0">Remove Degenerate Triangles</h3>
+          <span style="font-size:0.85rem;color:var(--muted);">Requires step 1 (shared-vertex mesh)</span>
+        </div>
+        <span class="step-tag">CGAL EPICK</span>
+      </div>
+
+      <h3>What it fixes</h3>
+      <p>
+        A <em>degenerate triangle</em> is a face whose three vertices are collinear or
+        effectively coincident — the face has zero area and no well-defined normal.
+        These arise from:
+      </p>
+      <ul>
+        <li>Floating-point rounding during boolean operations in CAD tools</li>
+        <li>Very short edges where two vertices nearly coincide but fall just outside the merge tolerance</li>
+        <li>Sliver triangles produced by meshing algorithms at sharp features</li>
+      </ul>
+      <p>
+        Degenerate faces corrupt every subsequent analysis step. Non-manifold detection counts
+        face-edge incidences, and a zero-area face contributes incorrect incidences.
+        Normal orientation propagates winding across faces, and a zero-area face has no valid
+        normal to propagate from. Hole-filling traverses boundary halfedges and may loop
+        indefinitely if the topology is corrupted by degenerate geometry.
+      </p>
+
+      <h3>How it works</h3>
+      <p>
+        CGAL's <code>PMP::is_degenerate_triangle_face()</code> tests each face individually
+        (checks that the cross product of two edge vectors has non-zero length). All faces
+        that return <code>true</code> are collected, then
+        <code>PMP::remove_degenerate_faces()</code> removes them and re-stitches the
+        surrounding mesh to maintain a valid half-edge structure.
+      </p>
+
+      <h3>Options</h3>
+      <table>
+        <thead><tr><th>RepairOptions field</th><th>CLI flag</th><th class="td-type">Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>remove_degenerate_triangles</code></td><td><code>--no-remove-degenerate</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Enable/disable this step.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Report output</h3>
+      <p><code>issues_found</code> = number of degenerate faces detected.<br>
+      <code>issues_fixed</code> = number of faces successfully removed.</p>
+    </section>
+
+    <!-- ── Step 3 ─────────────────────────────────────────────────────── -->
+    <section id="step-nonmanifold" class="anchor">
+      <h2>Step 3 — Fix Non-Manifold Geometry</h2>
+
+      <div class="step-header">
+        <div class="step-num">3</div>
+        <div>
+          <h3 style="margin:0">Fix Non-Manifold Geometry</h3>
+          <span style="font-size:0.85rem;color:var(--muted);">Requires steps 1–2</span>
+        </div>
+        <span class="step-tag">CGAL EPICK</span>
+      </div>
+
+      <h3>What it fixes</h3>
+      <p>
+        A <em>manifold</em> mesh is one where the neighbourhood of every point looks like a
+        flat disk — every edge is shared by exactly two faces, and every vertex has exactly
+        one "fan" of faces surrounding it. Many repair and slicing algorithms require this.
+      </p>
+      <p>Non-manifold geometry occurs in two forms:</p>
+      <ul>
+        <li>
+          <strong>Non-manifold edges</strong> — an edge shared by three or more faces.
+          Common when two separate surfaces are "glued" at a seam, or when a CAD tool
+          exports shared internal walls.
+        </li>
+        <li>
+          <strong>Non-manifold vertices</strong> — a vertex where two otherwise separate
+          surface patches meet at a single point (a "bowtie" or "pinch point").
+          The faces around the vertex do not form a single connected disk.
+        </li>
+      </ul>
+
+      <h3>How it works</h3>
+      <p>
+        CGAL's <code>PMP::non_manifold_vertices()</code> (CGAL 6 API) returns a list of
+        <code>halfedge_descriptor</code> values — one per problematic vertex fan.
+        Note: in CGAL 5.x this function returned <code>vertex_descriptor</code>; the
+        signature changed in CGAL 6.
+      </p>
+      <p>
+        <code>PMP::duplicate_non_manifold_vertices()</code> then resolves the problem by
+        <em>splitting</em> each non-manifold vertex into multiple copies — one per
+        connected fan of faces. The faces retain their geometry; only the topology changes.
+        This may increase the vertex count slightly and may open small seams that the
+        hole-filling step (step 5) will close.
+      </p>
+
+      <h3>Options</h3>
+      <table>
+        <thead><tr><th>RepairOptions field</th><th>CLI flag</th><th class="td-type">Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>fix_non_manifold</code></td><td><code>--no-fix-non-manifold</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Enable/disable this step.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Report output</h3>
+      <p><code>issues_found</code> = number of non-manifold halfedges detected.<br>
+      <code>issues_fixed</code> = number of vertices that were split.</p>
+    </section>
+
+    <!-- ── Step 4 ─────────────────────────────────────────────────────── -->
+    <section id="step-normals" class="anchor">
+      <h2>Step 4 — Fix Face Normals</h2>
+
+      <div class="step-header">
+        <div class="step-num">4</div>
+        <div>
+          <h3 style="margin:0">Fix Face Normals</h3>
+          <span style="font-size:0.85rem;color:var(--muted);">Requires steps 1–3</span>
+        </div>
+        <span class="step-tag">CGAL EPICK</span>
+      </div>
+
+      <h3>What it fixes</h3>
+      <p>
+        A triangle's normal is determined by the order of its three vertices (winding order).
+        Counter-clockwise order (when viewed from outside) points the normal outward.
+        Clockwise order points the normal inward — the face appears "inside-out".
+      </p>
+      <p>
+        Inconsistent normals cause visible rendering artefacts (faces disappear when viewed
+        from one side), incorrect volume calculations, and failed slicer analysis.
+        They commonly arise when different CAD tools use different winding conventions
+        and objects are assembled without normalising conventions.
+      </p>
+
+      <h3>How it works</h3>
+      <p>
+        CGAL's <code>PMP::orient()</code> propagates a consistent winding order across each
+        connected component of the mesh by treating the mesh as a graph and doing a
+        BFS/DFS flip propagation. Adjacent faces are flipped so their shared edge is
+        traversed in opposite directions — the standard condition for consistent orientation.
+      </p>
+      <p>
+        After orientation, the step calls <code>PMP::reverse_face_orientations()</code>
+        on any component where <code>PMP::is_outward_oriented()</code> returns false —
+        but <em>only for closed meshes</em>. That CGAL function asserts the mesh is closed
+        (no boundary edges); calling it on a mesh with open holes would crash.
+        Open meshes skip the outward-check and only receive the consistency pass.
+      </p>
+
+      <div class="callout info">
+        <strong>Open meshes get consistency, not outward orientation.</strong>
+        If the mesh still has holes after step 3, normals are made consistent across each
+        component but the "which side is outside" check is skipped. Run step 5 (fill holes)
+        to close the mesh before this matters.
+      </div>
+
+      <h3>Options</h3>
+      <table>
+        <thead><tr><th>RepairOptions field</th><th>CLI flag</th><th class="td-type">Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>fix_normals</code></td><td><code>--no-fix-normals</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Enable/disable this step.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Report output</h3>
+      <p><code>issues_found</code> = 1 if any component needed orientation, 0 otherwise.<br>
+      <code>issues_fixed</code> = same value (the operation is all-or-nothing per component).</p>
+    </section>
+
+    <!-- ── Step 5 ─────────────────────────────────────────────────────── -->
+    <section id="step-holes" class="anchor">
+      <h2>Step 5 — Fill Holes</h2>
+
+      <div class="step-header">
+        <div class="step-num">5</div>
+        <div>
+          <h3 style="margin:0">Fill Holes</h3>
+          <span style="font-size:0.85rem;color:var(--muted);">Requires steps 1–4</span>
+        </div>
+        <span class="step-tag">CGAL EPICK</span>
+      </div>
+
+      <h3>What it fixes</h3>
+      <p>
+        An <em>open mesh</em> has boundary edges — halfedges with no opposite face.
+        These appear as "holes" in the surface. They arise from:
+      </p>
+      <ul>
+        <li>Exported CAD assemblies where internal walls were deleted to reduce polygon count</li>
+        <li>Boolean operations that left small gaps at seams</li>
+        <li>Manual mesh editing that removed faces without closing the boundary</li>
+        <li>Non-manifold splitting in step 3 pulling apart previously "pinched" surface patches</li>
+      </ul>
+      <p>
+        An open mesh cannot be used for 3D printing (slicers need a watertight shell),
+        volumetric analysis, or many boolean operations.
+      </p>
+
+      <h3>How it works</h3>
+      <p>
+        The step first identifies all distinct boundary cycles by traversing border halfedges
+        with a visited-set: starting from each unvisited border halfedge, it follows
+        <code>next()</code> calls around the boundary until it returns to the start,
+        recording one "hole" per complete cycle.
+      </p>
+      <p>
+        Each hole is then filled using one of two CGAL functions:
+      </p>
+      <ul>
+        <li>
+          <strong>Smooth fill</strong> (default, <code>fill_holes_smooth = true</code>):
+          <code>PMP::triangulate_and_refine_hole()</code> — triangulates the hole and then
+          refines the new triangles to match the local mesh density and curvature.
+          Produces higher-quality, smoother patches.
+        </li>
+        <li>
+          <strong>Flat fan fill</strong> (<code>fill_holes_smooth = false</code>, CLI: <code>--flat-fill</code>):
+          <code>PMP::triangulate_hole()</code> — simple fan triangulation from the boundary
+          centroid. Faster but can produce flat, low-quality patches on curved surfaces.
+        </li>
+      </ul>
+      <p>
+        The <code>max_hole_edges</code> option lets you skip large holes. A hole with more
+        boundary edges than this threshold is left open. Set to <code>0</code> (default) to
+        fill all holes regardless of size.
+      </p>
+
+      <div class="callout tip">
+        <strong>Use max_hole_edges to protect intentional openings.</strong>
+        If your model has a deliberate large opening (e.g., a cup with an open top),
+        set <code>--max-hole-edges 50</code> to fill only small accidental gaps while leaving
+        large boundaries intact.
+      </div>
+
+      <h3>Options</h3>
+      <table>
+        <thead><tr><th>RepairOptions field</th><th>CLI flag</th><th class="td-type">Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>fill_holes</code></td><td><code>--no-fill-holes</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Enable/disable this step.</td></tr>
+          <tr><td><code>max_hole_edges</code></td><td><code>--max-hole-edges &lt;n&gt;</code></td><td class="td-type">size_t</td><td class="td-default">0</td><td>Skip holes with more than N boundary edges. 0 means fill all holes.</td></tr>
+          <tr><td><code>fill_holes_smooth</code></td><td><code>--flat-fill</code> (inverts)</td><td class="td-type">bool</td><td class="td-default">true</td><td>Use smooth refinement (true) or flat fan triangulation (false).</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Report output</h3>
+      <p><code>issues_found</code> = number of boundary cycles (holes) detected.<br>
+      <code>issues_fixed</code> = number of holes successfully filled. Holes skipped due to
+      <code>max_hole_edges</code> count as found but not fixed.</p>
+    </section>
+
+    <!-- ── Step 6 ─────────────────────────────────────────────────────── -->
+    <section id="step-self-intersections" class="anchor">
+      <h2>Step 6 — Remove Self-Intersections</h2>
+
+      <div class="step-header">
+        <div class="step-num">6</div>
+        <div>
+          <h3 style="margin:0">Remove Self-Intersections</h3>
+          <span style="font-size:0.85rem;color:var(--muted);">Requires steps 1–5 · Slowest step</span>
+        </div>
+        <span class="step-tag">CGAL EPECK</span>
+      </div>
+
+      <h3>What it fixes</h3>
+      <p>
+        A self-intersecting mesh is one where triangles from different parts of the surface
+        pass through each other. The mesh looks correct visually at a distance but is
+        geometrically invalid: the surface is not a proper 2-manifold embedded in 3D space.
+      </p>
+      <p>Self-intersections are produced by:</p>
+      <ul>
+        <li>Boolean difference operations that don't fully resolve the intersection curve</li>
+        <li>Mesh deformation (sculpting, animation) that folds the surface back on itself</li>
+        <li>Incorrectly assembled CAD parts where components physically overlap</li>
+        <li>Conversion artefacts when importing from formats with lower precision</li>
+      </ul>
+      <p>
+        Slicers, FEM solvers, and volumetric renderers all require a non-self-intersecting
+        surface. Self-intersections cause incorrect infill paths, volume miscalculations,
+        and simulation instability.
+      </p>
+
+      <h3>How it works</h3>
+      <p>
+        This is the only step that requires CGAL's <strong>EPECK kernel</strong>
+        (Exact Predicates Exact Constructions). Floating-point arithmetic cannot reliably
+        resolve intersection curves at the precision required — the intersecting triangle
+        pairs must be re-triangulated around the exact intersection line, and floating-point
+        rounding would introduce new intersections in the process.
+      </p>
+      <p>The algorithm proceeds in four sub-steps:</p>
+      <ol>
+        <li>
+          <strong>Detection</strong> — <code>PMP::self_intersections()</code> on the EPICK
+          mesh quickly finds all pairs of intersecting faces. If none are found, the step
+          is skipped immediately.
+        </li>
+        <li>
+          <strong>Conversion to EPECK</strong> — the EPICK mesh is copied to a
+          <code>CGAL::Surface_mesh&lt;EPECK::Point_3&gt;</code> using
+          <code>CGAL::copy_face_graph()</code>. Coordinates are converted exactly.
+        </li>
+        <li>
+          <strong>Repair</strong> — <code>PMP::experimental::remove_self_intersections()</code>
+          with <code>preserve_genus = false</code>. The <code>experimental</code> namespace
+          reflects that this function can change mesh genus (topology) to resolve
+          intersections — it may add or remove handles if that is the only way to make the
+          surface non-self-intersecting.
+        </li>
+        <li>
+          <strong>Conversion back to EPICK</strong> — the repaired EPECK mesh is copied
+          back via <code>copy_face_graph()</code> for use in subsequent operations.
+          A final self-intersection check verifies the result.
+        </li>
+      </ol>
+
+      <div class="callout warn">
+        <strong>This step is slow on large meshes.</strong>
+        EPECK arithmetic is exact but 10–100× slower than floating-point EPICK.
+        A mesh with 100k faces may take several minutes. Use
+        <code>--no-remove-self-intersections</code> to skip it when you know the mesh has
+        no self-intersections, or when processing many small files where speed matters.
+      </div>
+
+      <h3>Options</h3>
+      <table>
+        <thead><tr><th>RepairOptions field</th><th>CLI flag</th><th class="td-type">Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>remove_self_intersections</code></td><td><code>--no-remove-self-intersections</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Enable/disable this step. Safe to disable when input is known to be self-intersection-free.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Report output</h3>
+      <p><code>issues_found</code> = number of intersecting face pairs before repair.<br>
+      <code>issues_fixed</code> = number of pairs resolved. If any remain after repair,
+      they appear as <code>issues_found − issues_fixed</code>.</p>
+    </section>
+
+    <!-- ── CLI ───────────────────────────────────────────────────────── -->
+    <section id="cli" class="anchor">
+      <h2>CLI Reference</h2>
+      <p>The CLI tool is built to <code>build/&lt;preset&gt;/cli/model-repair</code>.</p>
+
+      <h3>Synopsis</h3>
+      <pre><span class="cmd">model-repair</span> <span class="val">INPUT OUTPUT</span> [<span class="flag">OPTIONS</span>]
+
+  <span class="val">INPUT</span>   Input mesh file (.stl, .obj, .3mf) — must exist
+  <span class="val">OUTPUT</span>  Output mesh file (.stl, .obj, .3mf) — format from extension</pre>
+
+      <h3 id="cli-options" class="anchor">Options</h3>
+
+      <h4>Repair step toggles</h4>
+      <table>
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>--no-merge-vertices</code></td><td>Skip step 1 (duplicate vertex merging). Effectively disables all later steps.</td></tr>
+          <tr><td><code>--merge-tolerance &lt;f&gt;</code></td><td>Vertex merge distance threshold. Default: <code class="td-default">1e-6</code>. In model units (usually mm).</td></tr>
+          <tr><td><code>--no-remove-degenerate</code></td><td>Skip step 2 (degenerate triangle removal).</td></tr>
+          <tr><td><code>--no-fix-non-manifold</code></td><td>Skip step 3 (non-manifold repair).</td></tr>
+          <tr><td><code>--no-fix-normals</code></td><td>Skip step 4 (normal orientation).</td></tr>
+          <tr><td><code>--no-fill-holes</code></td><td>Skip step 5 (hole filling).</td></tr>
+          <tr><td><code>--max-hole-edges &lt;n&gt;</code></td><td>Fill only holes with ≤ N boundary edges. Default: <code class="td-default">0</code> (fill all).</td></tr>
+          <tr><td><code>--flat-fill</code></td><td>Use flat fan triangulation for holes instead of smooth refinement.</td></tr>
+          <tr><td><code>--no-remove-self-intersections</code></td><td>Skip step 6 (self-intersection removal). Recommended for large meshes when speed matters.</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Output options</h4>
+      <table>
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>--ascii-stl</code></td><td>Write ASCII STL instead of binary. Only applies when the output format is STL.</td></tr>
+          <tr><td><code>--report &lt;path&gt;</code></td><td>Write the full repair report as JSON to a file in addition to stdout.</td></tr>
+          <tr><td><code>--report-format &lt;fmt&gt;</code></td><td>Stdout report format: <code>text</code> (default) or <code>json</code>.</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Logging</h4>
+      <table>
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>-v, --verbose</code></td><td>Show step-by-step progress with per-step timing.</td></tr>
+          <tr><td><code>-q, --quiet</code></td><td>Suppress all output except errors.</td></tr>
+          <tr><td><code>--version</code></td><td>Print version string and exit.</td></tr>
+          <tr><td><code>-h, --help</code></td><td>Print help and exit.</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Exit codes</h4>
+      <table>
+        <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><span class="exit-code exit-0">0</span></td><td>Success — output written.</td></tr>
+          <tr><td><span class="exit-code exit-err">1</span></td><td>Input file not found or unreadable.</td></tr>
+          <tr><td><span class="exit-code exit-err">2</span></td><td>Unsupported input or output file format.</td></tr>
+          <tr><td><span class="exit-code exit-err">3</span></td><td>Repair step threw an exception.</td></tr>
+          <tr><td><span class="exit-code exit-err">4</span></td><td>Output write failed (bad path, disk full, report write error).</td></tr>
+        </tbody>
+      </table>
+
+      <h3 id="cli-examples" class="anchor">Examples</h3>
+
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Default repair — all six steps, binary STL output</span>
+<span class="cmd">model-repair</span> broken.stl repaired.stl</pre>
+
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Verbose mode: prints per-step progress and timing</span>
+<span class="cmd">model-repair</span> broken.stl repaired.stl <span class="flag">--verbose</span></pre>
+
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Format conversion: STL in, 3MF out — repair runs on the way</span>
+<span class="cmd">model-repair</span> broken.stl repaired.3mf</pre>
+
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Skip the slow self-intersection step for large meshes</span>
+<span class="cmd">model-repair</span> large.stl out.stl <span class="flag">--no-remove-self-intersections</span></pre>
+
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Only fill small holes (≤ 20 boundary edges); leave large openings intact</span>
+<span class="cmd">model-repair</span> open.stl closed.stl <span class="flag">--max-hole-edges</span> <span class="val">20</span></pre>
+
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Save JSON report; suppress stdout; exit code tells you if it succeeded</span>
+<span class="cmd">model-repair</span> in.stl out.stl <span class="flag">--report</span> report.json <span class="flag">--quiet</span>
+<span class="cmt"># read report.json for detailed per-step stats</span></pre>
+
+      <h3 id="cli-report" class="anchor">Report format</h3>
+      <p>The text report (default stdout) looks like this:</p>
+      <pre><span class="ok">Repair Report</span>
+<span class="muted">─────────────────────────────────────────</span>
+Step 1  Merge vertices          found 12048  fixed 8032   (2.1 ms)
+Step 2  Degenerate triangles    found 3      fixed 3      (0.4 ms)
+Step 3  Non-manifold            found 0      fixed 0      (0.8 ms)
+Step 4  Fix normals             found 1      fixed 1      (1.2 ms)
+Step 5  Fill holes              found 2      fixed 2      (5.7 ms)
+Step 6  Self-intersections      found 0      fixed 0      (312 ms)
+
+Vertices:  12048 → 4016
+Triangles: 4016  → 4029
+Valid: yes   Manifold: yes   Closed: yes</pre>
+
+      <p>The JSON report (<code>--report-format json</code> or <code>--report path.json</code>) schema:</p>
+      <pre>{
+  <span class="str">"vertices_before"</span>:  <span class="val">12048</span>,
+  <span class="str">"triangles_before"</span>: <span class="val">4016</span>,
+  <span class="str">"vertices_after"</span>:   <span class="val">4016</span>,
+  <span class="str">"triangles_after"</span>:  <span class="val">4029</span>,
+  <span class="str">"is_valid_after"</span>:    <span class="val">true</span>,
+  <span class="str">"is_manifold_after"</span>: <span class="val">true</span>,
+  <span class="str">"is_closed_after"</span>:   <span class="val">true</span>,
+  <span class="str">"steps"</span>: [
+    {
+      <span class="str">"name"</span>:         <span class="val">"Merge vertices"</span>,
+      <span class="str">"was_run"</span>:      <span class="val">true</span>,
+      <span class="str">"issues_found"</span>: <span class="val">12048</span>,
+      <span class="str">"issues_fixed"</span>: <span class="val">8032</span>,
+      <span class="str">"duration_ms"</span>:  <span class="val">2.1</span>
+    },
+    <span class="cmt">// ... one entry per step</span>
+  ]
+}</pre>
+    </section>
+
+    <!-- ── GUI ───────────────────────────────────────────────────────── -->
+    <section id="gui" class="anchor">
+      <h2>GUI Guide</h2>
+      <p>
+        The Qt 6 GUI is built to <code>build/&lt;preset&gt;/gui/model-repair-gui</code>.
+        It runs the same repair pipeline as the CLI but adds a graphical interface,
+        real-time progress, a 3D before/after preview, and batch processing.
+      </p>
+
+      <h3 id="gui-main" class="anchor">Main Window</h3>
+
+      <h4>Loading a file</h4>
+      <p>
+        Drag and drop an STL, OBJ, or 3MF file onto the drop zone in the center of the window,
+        or click <strong>Open file…</strong> to use a file dialog.
+        The drop zone shows the loaded file's vertex and triangle count once loaded.
+      </p>
+
+      <h4>Repair options</h4>
+      <p>The options panel mirrors every <code>RepairOptions</code> field:</p>
+      <table>
+        <thead><tr><th>Control</th><th>Corresponding option</th><th>Default</th></tr></thead>
+        <tbody>
+          <tr><td>Merge duplicate vertices ☑</td><td><code>merge_duplicate_vertices</code></td><td>On</td></tr>
+          <tr><td>Merge tolerance (spinbox)</td><td><code>merge_tolerance</code></td><td>0.000001</td></tr>
+          <tr><td>Remove degenerate triangles ☑</td><td><code>remove_degenerate_triangles</code></td><td>On</td></tr>
+          <tr><td>Fix non-manifold geometry ☑</td><td><code>fix_non_manifold</code></td><td>On</td></tr>
+          <tr><td>Fix face normals ☑</td><td><code>fix_normals</code></td><td>On</td></tr>
+          <tr><td>Fill holes ☑</td><td><code>fill_holes</code></td><td>On</td></tr>
+          <tr><td>Max hole edges (spinbox)</td><td><code>max_hole_edges</code></td><td>0 (all)</td></tr>
+          <tr><td>Smooth fill ☑ (under Fill holes)</td><td><code>fill_holes_smooth</code></td><td>On</td></tr>
+          <tr><td>Remove self-intersections (slow) ☑</td><td><code>remove_self_intersections</code></td><td>On</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Running a repair</h4>
+      <p>
+        Click <strong>Repair</strong>. The repair runs on a background thread
+        (<code>RepairWorker</code> on a <code>QThread</code>) so the UI stays responsive.
+        A progress bar shows which step is currently running (e.g., "3/6 Fix non-manifold").
+        The report tree below it fills in per-step results as each step completes.
+      </p>
+      <p>
+        On success, the <a href="#gui-preview">3D Preview Window</a> opens automatically.
+        On failure, an error message is shown in the status bar.
+      </p>
+
+      <h4>Saving the result</h4>
+      <p>
+        Click <strong>Save…</strong> to open a save dialog. The output format is determined
+        by the file extension you choose (.stl writes binary STL, .obj writes OBJ, .3mf writes 3MF).
+      </p>
+
+      <h3 id="gui-preview" class="anchor">3D Preview Window</h3>
+      <p>
+        The preview window opens automatically after a successful repair. It shows the original
+        (before) mesh on the left and the repaired (after) mesh on the right, rendered
+        side-by-side with flat-shaded Phong lighting using OpenGL 3.3.
+      </p>
+
+      <h4>Camera controls</h4>
+      <table>
+        <thead><tr><th>Input</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><kbd>Left drag</kbd></td><td>Arcball rotation — rotate the model in 3D</td></tr>
+          <tr><td><kbd>Right drag</kbd></td><td>XY pan — translate the view</td></tr>
+          <tr><td><kbd>Scroll wheel</kbd></td><td>Zoom in / zoom out</td></tr>
+        </tbody>
+      </table>
+
+      <p>
+        Both viewports share a single camera state. Any interaction in one view is immediately
+        mirrored in the other — they always show the same angle. This lets you directly compare
+        the same region of the mesh before and after repair.
+      </p>
+
+      <div class="callout info">
+        <strong>The preview window is non-modal.</strong>
+        You can leave it open and start another repair in the main window.
+        The window is deleted automatically when closed.
+      </div>
+
+      <h4>Technical details</h4>
+      <p>
+        The renderer requests only a 24-bit depth buffer — no CoreProfile, no MSAA.
+        This is required for compatibility with the NVIDIA proprietary driver on Wayland
+        (EGL backend), which rejects <code>QSurfaceFormat::CoreProfile</code> with
+        <code>EGL_BAD_ATTRIBUTE</code>. The GLSL 3.30 shaders still work because the
+        default EGL context provides OpenGL 3.3+ in compatibility mode.
+      </p>
+
+      <h3 id="gui-batch" class="anchor">Batch Processing</h3>
+      <p>
+        The batch window lets you repair multiple files in one operation with a shared
+        configuration. Open it via <strong>File → Batch…</strong> in the main window.
+      </p>
+
+      <h4>Workflow</h4>
+      <ol>
+        <li>Drag and drop multiple STL/OBJ/3MF files onto the file list, or use the <strong>Add files…</strong> button.</li>
+        <li>Set an output directory with <strong>Choose output directory…</strong>. Repaired files are written there with the same filename.</li>
+        <li>Configure repair options (same controls as the main window — applied to all files).</li>
+        <li>Click <strong>Start</strong>. A status table shows each file's progress: Pending → Running → Done / Failed.</li>
+        <li>Click <strong>Preview</strong> next to any completed file to open a 3D before/after comparison for that file.</li>
+        <li>Click <strong>Cancel</strong> to abort the batch after the current file finishes.</li>
+      </ol>
+    </section>
+
+    <!-- ── API ───────────────────────────────────────────────────────── -->
+    <section id="api" class="anchor">
+      <h2>Library API</h2>
+      <p>
+        <code>libmodelrepair.so</code> exposes a simple C++ API via four headers.
+        Link against the shared library and include the headers to embed repair
+        functionality in your own application.
+      </p>
+
+      <h3>Headers</h3>
+      <pre><span class="kw">#include</span> <span class="str">"modelrepair/Mesh.hpp"</span>
+<span class="kw">#include</span> <span class="str">"modelrepair/RepairOptions.hpp"</span>
+<span class="kw">#include</span> <span class="str">"modelrepair/RepairPipeline.hpp"</span>
+<span class="kw">#include</span> <span class="str">"modelrepair/RepairReport.hpp"</span>
+<span class="kw">#include</span> <span class="str">"modelrepair/io/MeshIO.hpp"</span>    <span class="cmt">// optional — format-agnostic I/O</span></pre>
+
+      <h3>Basic usage</h3>
+      <pre><span class="kw">using namespace</span> modelrepair;
+
+<span class="cmt">// 1. Load</span>
+Mesh mesh = io::load(<span class="str">"broken.stl"</span>);
+
+<span class="cmt">// 2. Configure</span>
+RepairOptions opts;
+opts.max_hole_edges = <span class="val">20</span>;                   <span class="cmt">// skip large holes</span>
+opts.remove_self_intersections = <span class="val">false</span>;     <span class="cmt">// skip slow step</span>
+
+<span class="cmt">// 3. Run</span>
+RepairPipeline pipeline(opts);
+pipeline.set_progress_callback(
+    [](int step, int total, <span class="kw">const</span> std::string&amp; name) {
+        std::cout &lt;&lt; step &lt;&lt; <span class="str">"/"</span> &lt;&lt; total &lt;&lt; <span class="str">" "</span> &lt;&lt; name &lt;&lt; <span class="str">"\n"</span>;
+    });
+
+RepairReport report = pipeline.run(mesh);   <span class="cmt">// mutates mesh in-place</span>
+
+<span class="cmt">// 4. Inspect results</span>
+std::cout &lt;&lt; report.format_text();
+<span class="kw">if</span> (report.is_closed_after) {
+    io::save(mesh, <span class="str">"repaired.stl"</span>);
+}</pre>
+
+      <h3>RepairOptions fields</h3>
+      <table>
+        <thead><tr><th>Field</th><th class="td-type">Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>merge_duplicate_vertices</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Run step 1.</td></tr>
+          <tr><td><code>merge_tolerance</code></td><td class="td-type">double</td><td class="td-default">1e-6</td><td>Point-merge distance threshold.</td></tr>
+          <tr><td><code>remove_degenerate_triangles</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Run step 2.</td></tr>
+          <tr><td><code>fix_non_manifold</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Run step 3.</td></tr>
+          <tr><td><code>fix_normals</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Run step 4.</td></tr>
+          <tr><td><code>fill_holes</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Run step 5.</td></tr>
+          <tr><td><code>max_hole_edges</code></td><td class="td-type">size_t</td><td class="td-default">0</td><td>Skip holes with more than N edges (0 = no limit).</td></tr>
+          <tr><td><code>fill_holes_smooth</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Smooth refine (true) vs flat fan (false) for hole fill.</td></tr>
+          <tr><td><code>remove_self_intersections</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Run step 6 (slow, uses EPECK).</td></tr>
+          <tr><td><code>verbose</code></td><td class="td-type">bool</td><td class="td-default">false</td><td>Enable verbose logging inside the pipeline.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>RepairReport &amp; StepReport</h3>
+      <table>
+        <thead><tr><th>Field</th><th class="td-type">Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>vertices_before / after</code></td><td class="td-type">size_t</td><td>Vertex count before and after all steps.</td></tr>
+          <tr><td><code>triangles_before / after</code></td><td class="td-type">size_t</td><td>Face count before and after all steps.</td></tr>
+          <tr><td><code>is_valid_after</code></td><td class="td-type">bool</td><td>CGAL combinatorial validity check passed.</td></tr>
+          <tr><td><code>is_manifold_after</code></td><td class="td-type">bool</td><td>No non-manifold edges or vertices remain.</td></tr>
+          <tr><td><code>is_closed_after</code></td><td class="td-type">bool</td><td>No boundary edges — mesh is watertight.</td></tr>
+          <tr><td><code>steps</code></td><td class="td-type">vector&lt;StepReport&gt;</td><td>One entry per repair step in order.</td></tr>
+          <tr><td><code>format_text()</code></td><td class="td-type">string</td><td>Human-readable multi-line report.</td></tr>
+          <tr><td><code>format_json()</code></td><td class="td-type">string</td><td>JSON report string.</td></tr>
+        </tbody>
+      </table>
+      <p>Each <code>StepReport</code> has: <code>name</code>, <code>was_run</code>, <code>issues_found</code>, <code>issues_fixed</code>, <code>duration_ms</code>.</p>
+
+      <h3>Mesh API</h3>
+      <table>
+        <thead><tr><th>Method</th><th>Returns</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>num_vertices()</code></td><td class="td-type">size_t</td><td>Current vertex count.</td></tr>
+          <tr><td><code>num_faces()</code></td><td class="td-type">size_t</td><td>Current face count.</td></tr>
+          <tr><td><code>is_valid()</code></td><td class="td-type">bool</td><td>CGAL combinatorial validity.</td></tr>
+          <tr><td><code>is_closed()</code></td><td class="td-type">bool</td><td>No boundary halfedges (watertight).</td></tr>
+          <tr><td><code>is_manifold()</code></td><td class="td-type">bool</td><td>All edges shared by exactly 2 faces.</td></tr>
+          <tr><td><code>cgal()</code></td><td class="td-type">CGAL::Surface_mesh&amp;</td><td>Direct access to the underlying CGAL mesh for advanced operations.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>I/O</h3>
+      <pre><span class="cmt">// Format is inferred from the file extension</span>
+Mesh mesh = modelrepair::io::load(<span class="str">"model.stl"</span>);   <span class="cmt">// .stl .obj .3mf</span>
+modelrepair::io::save(mesh, <span class="str">"out.3mf"</span>);           <span class="cmt">// binary STL by default</span>
+modelrepair::io::save(mesh, <span class="str">"out.stl"</span>, <span class="val">false</span>);     <span class="cmt">// false = ASCII STL</span></pre>
+      <p>
+        Per-format headers (<code>modelrepair/io/StlIO.hpp</code>, <code>ObjIO.hpp</code>,
+        <code>ThreeMFIO.hpp</code>) are also available for direct use.
+      </p>
+
+      <h3>CMake integration</h3>
+      <pre><span class="cmt"># In your CMakeLists.txt</span>
+<span class="cmd">add_subdirectory</span>(path/to/model-repair)
+<span class="cmd">target_link_libraries</span>(your-target PRIVATE modelrepair)
+<span class="cmd">target_include_directories</span>(your-target PRIVATE
+    path/to/model-repair/include)</pre>
+    </section>
+
+    <!-- ── Formats ───────────────────────────────────────────────────── -->
+    <section id="formats" class="anchor">
+      <h2>File Format Support</h2>
+
+      <h3>STL (Stereolithography)</h3>
+      <p>
+        The most common format for 3D printing. STL stores a flat list of triangles with no
+        vertex sharing and no colour or metadata. Both binary and ASCII variants are supported.
+      </p>
+      <ul>
+        <li><strong>Read</strong>: Auto-detected (binary vs ASCII) from file content, not extension.</li>
+        <li><strong>Write</strong>: Binary by default (smaller file); ASCII with <code>--ascii-stl</code> / <code>io::save(mesh, path, false)</code>.</li>
+        <li><strong>Note</strong>: Because STL has no vertex sharing, step 1 always reports merges — this is expected.</li>
+      </ul>
+
+      <h3>OBJ (Wavefront)</h3>
+      <p>
+        A text format that supports shared vertices, material references, and UV coordinates.
+        Only triangle geometry is processed; materials and UV maps are ignored on load and
+        not written on save.
+      </p>
+      <ul>
+        <li><strong>Read</strong>: Triangulated on load. Quads and higher-order polygons are not supported.</li>
+        <li><strong>Write</strong>: Plain triangulated OBJ, no materials.</li>
+      </ul>
+
+      <h3>3MF (3D Manufacturing Format)</h3>
+      <p>
+        An XML-based format designed for 3D printing. Supports multiple mesh objects,
+        metadata, colours, and print settings. The library wraps
+        <a href="https://github.com/3MFConsortium/lib3mf" target="_blank" rel="noopener">lib3mf</a>
+        (fetched automatically by CMake).
+      </p>
+      <ul>
+        <li><strong>Read</strong>: Loads the first mesh object from the file. Multi-object 3MF files have only the first object repaired.</li>
+        <li><strong>Write</strong>: Writes a single-object 3MF. Metadata and print settings from the input are not preserved.</li>
+      </ul>
+    </section>
+
+    <!-- ── Architecture ──────────────────────────────────────────────── -->
+    <section id="architecture" class="anchor">
+      <h2>Architecture</h2>
+
+      <h3>Component overview</h3>
+      <pre>┌─────────────────────────────────────────────────┐
+│               libmodelrepair.so                  │
+│                                                  │
+│  RepairPipeline ──► Step 1: MergeDuplicateVtx    │
+│                     Step 2: RemoveDegenerateTri  │
+│                     Step 3: FixNonManifold       │
+│                     Step 4: FixNormals           │
+│                     Step 5: FillHoles            │
+│                     Step 6: RemoveSelfIsect      │
+│                                                  │
+│  MeshIO ──────────► StlIO / ObjIO / ThreeMFIO    │
+└──────────────┬──────────────────────────────────┘
+               │ links against
+    ┌──────────┴──────────┐
+    │                     │
+┌───▼────┐          ┌─────▼──────────────┐
+│  CLI   │          │    Qt 6 GUI         │
+│model-  │          │  MainWindow         │
+│repair  │          │  RepairWorker       │
+│        │          │  ReportView         │
+│        │          │  PreviewWindow      │
+│        │          │  BatchWindow        │
+└────────┘          └────────────────────┘</pre>
+
+      <h3>Pipeline design</h3>
+      <p>
+        The pipeline is designed around a strict ordering guarantee: each step is a
+        hard precondition for the next. The implementation enforces this by making each step
+        a private method of <code>RepairPipeline</code> called in sequence — there is no
+        way to call step 3 without having run steps 1 and 2.
+      </p>
+      <p>
+        Each step mutates the <code>Mesh</code> in-place and returns a <code>StepReport</code>
+        with counts and timing. The pipeline collects all <code>StepReport</code>s into the
+        final <code>RepairReport</code>.
+      </p>
+
+      <h3>EPICK vs EPECK</h3>
+      <p>
+        CGAL offers multiple arithmetic kernels. Steps 1–5 use
+        <strong>EPICK</strong> (Exact Predicates Inexact Constructions) — geometric predicates
+        (e.g., "do these two triangles intersect?") are computed exactly, but new point
+        coordinates (e.g., centroids for hole filling) are computed in double-precision
+        floating point. This is fast and accurate enough for steps that only rearrange
+        topology or construct simple patches.
+      </p>
+      <p>
+        Step 6 requires <strong>EPECK</strong> (Exact Predicates Exact Constructions).
+        Resolving a self-intersection means computing the <em>exact</em> intersection line
+        between two triangles and re-triangulating both around it. If this is done in
+        floating point, the new vertices introduce new (slightly offset) intersections,
+        and the repair loops forever. EPECK uses lazy exact arithmetic (GMP/MPFR under the
+        hood) to compute intersection coordinates to arbitrary precision — but this is
+        10–100× slower than floating-point arithmetic.
+      </p>
+
+      <h3>GUI threading model</h3>
+      <p>
+        The GUI runs the repair on a background thread to keep the UI responsive. The design:
+      </p>
+      <ul>
+        <li>
+          <strong><code>RepairWorker</code></strong> is a <code>QObject</code> moved onto a
+          <code>QThread</code>. It holds a copy of the input mesh (taken before
+          <code>RepairPipeline::run()</code> mutates it in-place) and the options struct.
+        </li>
+        <li>
+          Progress signals cross the thread boundary via
+          <code>QMetaObject::invokeMethod(..., Qt::QueuedConnection)</code> — the only
+          thread-safe way to update Qt widgets from a non-GUI thread.
+        </li>
+        <li>
+          On completion, <code>RepairWorker</code> emits a four-argument <code>finished</code>
+          signal carrying: <code>RepairReport</code>, before-mesh, after-mesh, error string.
+          <code>MainWindow</code> receives this on the main thread and opens the
+          <code>PreviewWindow</code>.
+        </li>
+      </ul>
+
+      <h3>Camera synchronisation in PreviewWindow</h3>
+      <p>
+        Both <code>MeshViewWidget</code> instances (Before and After) share a single
+        <code>std::shared_ptr&lt;CameraState&gt;</code> containing rotation (as a
+        <code>QQuaternion</code>), zoom, pan, and scene radius.
+        When any camera-mutating mouse event fires, the widget calls
+        <code>emit camera_changed()</code>; the peer widget is connected to that signal
+        and calls <code>update()</code> to redraw. No mutex is needed because both widgets
+        live in the main thread — Qt's event loop is single-threaded.
+      </p>
+
+      <h3>Build presets</h3>
+      <table>
+        <thead><tr><th>Preset</th><th>Targets built</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><code>debug</code></td><td>lib + CLI + GUI + tests</td><td>AddressSanitizer enabled. Tests require <code>LD_PRELOAD=$(gcc -print-file-name=libasan.so)</code>.</td></tr>
+          <tr><td><code>release</code></td><td>lib + CLI + GUI + tests</td><td>Optimised. No ASan overhead.</td></tr>
+          <tr><td><code>release-nogui</code></td><td>lib + CLI + tests</td><td>No Qt dependency. Use for headless servers or CI.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  <span>model-repair v0.1.0 — MIT License</span>
+  <div class="footer-links">
+    <a href="index.html">← Home</a>
+    <a href="https://github.com/Cracksoldier/model-repair" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://github.com/Cracksoldier/model-repair/issues" target="_blank" rel="noopener">Issues</a>
+  </div>
+</footer>
+
+<script>
+  // Copy buttons
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pre = btn.parentElement;
+      const text = pre.innerText.replace(/^copy\n?/, '');
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'copied!';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'copy'; btn.classList.remove('copied'); }, 1800);
+      });
+    });
+  });
+
+  // Sidebar active state on scroll
+  const sections = document.querySelectorAll('section[id], h2[id], h3[id]');
+  const sidebarLinks = document.querySelectorAll('aside a[href^="#"]');
+
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        sidebarLinks.forEach(a => {
+          a.classList.toggle('active', a.getAttribute('href') === '#' + id);
+        });
+      }
+    });
+  }, { rootMargin: '-52px 0px -60% 0px', threshold: 0 });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
