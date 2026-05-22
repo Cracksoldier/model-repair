@@ -19,6 +19,7 @@ add_library(modelrepair SHARED
 target_include_directories(modelrepair
     PUBLIC
         $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/include>
         $<INSTALL_INTERFACE:include>
 )
 

@@ -1,4 +1,5 @@
 #include "MainWindow.hpp"
+#include "modelrepair/Version.hpp"
 #include <QApplication>
 #include <QSurfaceFormat>
 
@@ -10,7 +11,7 @@ int main(int argc, char* argv[])
 
     QApplication app(argc, argv);
     app.setApplicationName("Model Repair");
-    app.setApplicationVersion("0.1.0");
+    app.setApplicationVersion(MODELREPAIR_VERSION);
     app.setOrganizationName("model-repair");
 
     gui::MainWindow window;

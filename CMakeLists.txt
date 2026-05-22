@@ -14,6 +14,12 @@ option(MODELREPAIR_ENABLE_ASAN "Enable AddressSanitizer"     OFF)
 include(cmake/CompilerWarnings.cmake)
 include(cmake/FetchDependencies.cmake)
 
+configure_file(
+    include/modelrepair/Version.hpp.in
+    ${CMAKE_BINARY_DIR}/include/modelrepair/Version.hpp
+    @ONLY
+)
+
 find_package(CGAL 5.6 REQUIRED COMPONENTS Core)
 find_package(Eigen3 3.4 REQUIRED NO_MODULE)
 

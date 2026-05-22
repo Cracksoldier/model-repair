@@ -1,6 +1,7 @@
 #include "modelrepair/Decimate.hpp"
 #include "modelrepair/RepairPipeline.hpp"
 #include "modelrepair/RepairReport.hpp"
+#include "modelrepair/Version.hpp"
 #include "modelrepair/io/MeshIO.hpp"
 
 #include <CLI/CLI.hpp>
@@ -18,7 +19,7 @@ using namespace modelrepair;
 int main(int argc, char* argv[])
 {
     CLI::App app{"model-repair: Linux 3D mesh repair tool", "model-repair"};
-    app.set_version_flag("--version", "0.1.0");
+    app.set_version_flag("--version", MODELREPAIR_VERSION);
 
     // Positional args
     fs::path input_path, output_path;
