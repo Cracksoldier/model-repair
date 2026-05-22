@@ -40,6 +40,9 @@ void collect_positions(const tinygltf::Model& model, int acc_idx,
     const std::size_t stride = bv.byteStride ? bv.byteStride : 12;
     const std::size_t base   = bv.byteOffset + acc.byteOffset;
 
+    if (acc.count > 0 && base + (acc.count - 1) * stride + 12 > buf.data.size())
+        throw std::runtime_error("GLB: POSITION accessor overruns buffer");
+
     out.reserve(out.size() + acc.count);
     for (std::size_t i = 0; i < acc.count; ++i)
     {
@@ -49,8 +52,10 @@ void collect_positions(const tinygltf::Model& model, int acc_idx,
     }
 }
 
+// vertex_count is the number of vertices in the associated POSITION accessor;
+// indices that reference beyond it are rejected to prevent cross-primitive aliasing.
 void collect_triangles(const tinygltf::Model& model, int acc_idx,
-                       std::size_t base_vertex,
+                       std::size_t base_vertex, std::size_t vertex_count,
                        std::vector<std::vector<std::size_t>>& out)
 {
     const auto& acc = model.accessors[acc_idx];
@@ -62,39 +67,52 @@ void collect_triangles(const tinygltf::Model& model, int acc_idx,
     if (acc.count % 3 != 0)
         throw std::runtime_error("GLB: INDICES count is not a multiple of 3");
 
-    const std::size_t base = bv.byteOffset + acc.byteOffset;
+    std::size_t elem_size;
+    switch (acc.componentType)
+    {
+    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:  elem_size = 1; break;
+    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT: elem_size = 2; break;
+    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:   elem_size = 4; break;
+    default:
+        throw std::runtime_error("GLB: unsupported index component type");
+    }
+
+    const std::size_t stride = bv.byteStride ? bv.byteStride : elem_size;
+    const std::size_t base   = bv.byteOffset + acc.byteOffset;
+
+    if (acc.count > 0 && base + (acc.count - 1) * stride + elem_size > buf.data.size())
+        throw std::runtime_error("GLB: INDICES accessor overruns buffer");
 
     auto get_idx = [&](std::size_t i) -> std::size_t
     {
         switch (acc.componentType)
         {
-        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE: {
-            const std::size_t stride = bv.byteStride ? bv.byteStride : 1;
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
             return static_cast<std::size_t>(buf.data[base + i * stride]);
-        }
         case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT: {
-            const std::size_t stride = bv.byteStride ? bv.byteStride : 2;
             uint16_t v;
             std::memcpy(&v, buf.data.data() + base + i * stride, 2);
             return static_cast<std::size_t>(v);
         }
-        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT: {
-            const std::size_t stride = bv.byteStride ? bv.byteStride : 4;
+        default: { // UNSIGNED_INT
             uint32_t v;
             std::memcpy(&v, buf.data.data() + base + i * stride, 4);
             return static_cast<std::size_t>(v);
         }
-        default:
-            throw std::runtime_error("GLB: unsupported index component type");
         }
     };
 
     const std::size_t tri_count = acc.count / 3;
     out.reserve(out.size() + tri_count);
     for (std::size_t t = 0; t < tri_count; ++t)
-        out.push_back({base_vertex + get_idx(t * 3),
-                       base_vertex + get_idx(t * 3 + 1),
-                       base_vertex + get_idx(t * 3 + 2)});
+    {
+        const std::size_t i0 = get_idx(t * 3);
+        const std::size_t i1 = get_idx(t * 3 + 1);
+        const std::size_t i2 = get_idx(t * 3 + 2);
+        if (i0 >= vertex_count || i1 >= vertex_count || i2 >= vertex_count)
+            throw std::runtime_error("GLB: vertex index out of range for primitive");
+        out.push_back({base_vertex + i0, base_vertex + i1, base_vertex + i2});
+    }
 }
 
 } // namespace
@@ -134,9 +152,10 @@ Mesh read_glb(const std::filesystem::path& path)
             if (pos_it == prim.attributes.end())
                 continue;
 
-            const std::size_t base = points.size();
+            const std::size_t base         = points.size();
+            const std::size_t vertex_count = model.accessors[pos_it->second].count;
             collect_positions(model, pos_it->second, points);
-            collect_triangles(model, prim.indices, base, polygons);
+            collect_triangles(model, prim.indices, base, vertex_count, polygons);
         }
     }
 
@@ -152,6 +171,12 @@ Mesh read_glb(const std::filesystem::path& path)
 void write_glb(const Mesh& mesh, const std::filesystem::path& path)
 {
     const auto& sm = mesh.cgal();
+
+    if (sm.number_of_faces() == 0)
+        throw std::runtime_error("Cannot write empty mesh as GLB: no faces");
+
+    if (sm.number_of_vertices() > std::numeric_limits<uint32_t>::max())
+        throw std::runtime_error("Mesh too large for GLB: vertex count exceeds uint32_t range");
 
     // Build packed position data and vertex index map.
     std::vector<float> pos_data;

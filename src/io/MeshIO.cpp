@@ -33,7 +33,7 @@ void save(const Mesh& mesh, const std::filesystem::path& path, bool binary_stl)
     if (ext == ".stl") { write_stl(mesh, path, binary_stl); return; }
     if (ext == ".obj") { write_obj(mesh, path); return; }
     if (ext == ".3mf") { write_3mf(mesh, path); return; }
-    if (ext == ".glb") { write_glb(mesh, path); return; }
+    if (ext == ".glb" || ext == ".gltf") { write_glb(mesh, path); return; }
     throw std::runtime_error("Unsupported file format '" + ext + "': " + path.string());
 }
 
