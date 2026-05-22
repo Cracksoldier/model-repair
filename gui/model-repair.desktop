@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Model Repair
+GenericName=3D Mesh Repair Tool
+Comment=Repair broken STL/OBJ/3MF/GLB meshes for 3D printing
+Exec=model-repair-gui %F
+Icon=model-repair
+Categories=Graphics;3DGraphics;
+MimeType=model/stl;model/obj;application/vnd.ms-3mfdocument;model/gltf-binary;model/gltf+json;
+Terminal=false

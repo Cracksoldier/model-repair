@@ -7,3 +7,5 @@ target_link_libraries(model-repair
         spdlog::spdlog
         modelrepair_warnings
 )
+
+install(TARGETS model-repair RUNTIME DESTINATION bin COMPONENT Runtime)

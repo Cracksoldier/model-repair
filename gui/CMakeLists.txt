@@ -27,3 +27,11 @@ set_target_properties(model-repair-gui PROPERTIES
     WIN32_EXECUTABLE TRUE
     MACOSX_BUNDLE    TRUE
 )
+
+install(TARGETS model-repair-gui RUNTIME DESTINATION bin COMPONENT Runtime)
+install(FILES model-repair.desktop
+    DESTINATION share/applications
+    COMPONENT Runtime)
+install(FILES icons/model-repair.svg
+    DESTINATION share/icons/hicolor/scalable/apps
+    COMPONENT Runtime)
