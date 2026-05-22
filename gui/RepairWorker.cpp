@@ -56,15 +56,26 @@ void RepairWorker::run()
     // Post-repair decimation
     if (opts_.decimate && !report.diagnose_only)
     {
-        auto dr = modelrepair::decimate(mesh, opts_.decimate_ratio);
+        modelrepair::DecimateResult dr;
+        try
+        {
+            dr = modelrepair::decimate(mesh, opts_.decimate_ratio);
+        }
+        catch (const std::exception& e)
+        {
+            emit finished({}, {}, {}, QString("Decimation failed: ") + e.what());
+            return;
+        }
         modelrepair::StepReport sr;
         sr.name         = "Decimate";
         sr.was_run      = true;
-        sr.issues_found = dr.faces_before;
+        sr.issues_found = 0;
         sr.issues_fixed = dr.faces_before - dr.faces_after;
         sr.duration_ms  = dr.duration_ms;
         report.steps.push_back(sr);
-        report.triangles_after = mesh.num_faces();
+        report.triangles_after    = mesh.num_faces();
+        report.surface_area_after = mesh.surface_area();
+        report.volume_after       = mesh.volume();
     }
 
     emit finished(report, std::move(before_mesh), std::move(mesh), {});

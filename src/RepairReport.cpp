@@ -16,9 +16,13 @@ std::string RepairReport::format_text() const
     os << std::fixed << std::setprecision(2);
     os << "  Area     : " << surface_area_before << " -> " << surface_area_after << " mm\xc2\xb2\n";
     if (volume_before || volume_after)
-        os << "  Volume   : "
-           << (volume_before ? std::to_string(*volume_before) : "n/a") << " -> "
-           << (volume_after  ? std::to_string(*volume_after)  : "n/a") << " mm\xc2\xb3\n";
+    {
+        os << "  Volume   : ";
+        if (volume_before) os << *volume_before; else os << "n/a";
+        os << " -> ";
+        if (volume_after) os << *volume_after; else os << "n/a";
+        os << " mm\xc2\xb3\n";
+    }
     os << "  Manifold : " << (is_manifold_after ? "yes" : "no") << "\n";
     os << "  Closed   : " << (is_closed_after   ? "yes" : "no") << "\n";
     os << "\n";

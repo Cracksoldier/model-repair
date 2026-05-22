@@ -1,6 +1,7 @@
 #include "modelrepair/Mesh.hpp"
 
 #include <CGAL/Polygon_mesh_processing/manifoldness.h>
+#include <CGAL/Polygon_mesh_processing/measure.h>
 #include <vector>
 
 namespace PMP = CGAL::Polygon_mesh_processing;
@@ -49,6 +50,18 @@ bool Mesh::is_manifold() const
     std::vector<SurfMesh::Halfedge_index> nm;
     PMP::non_manifold_vertices(mesh_, std::back_inserter(nm));
     return nm.empty();
+}
+
+double Mesh::surface_area() const
+{
+    return CGAL::to_double(PMP::area(mesh_));
+}
+
+std::optional<double> Mesh::volume() const
+{
+    if (!is_closed())
+        return std::nullopt;
+    return CGAL::to_double(PMP::volume(mesh_));
 }
 
 void Mesh::clear()

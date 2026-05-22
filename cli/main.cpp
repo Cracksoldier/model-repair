@@ -160,7 +160,16 @@ int main(int argc, char* argv[])
             logger->warn("Could not save repaired intermediate: {}", e.what());
         }
 
-        auto dr = modelrepair::decimate(mesh, decimate_ratio);
+        modelrepair::DecimateResult dr;
+        try
+        {
+            dr = modelrepair::decimate(mesh, decimate_ratio);
+        }
+        catch (const std::exception& e)
+        {
+            logger->error("Decimation failed: {}", e.what());
+            return 5;
+        }
         logger->info("Decimate  {} -> {} faces  ({:.1f} ms)",
                      dr.faces_before, dr.faces_after, dr.duration_ms);
     }

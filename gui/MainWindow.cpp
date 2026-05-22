@@ -278,7 +278,8 @@ void MainWindow::on_repair_finished(modelrepair::RepairReport report,
     if (report.diagnose_only)
     {
         status_label_->setText("Diagnosis complete — no changes made");
-        // Save and preview are not available after diagnose
+        repaired_mesh_.reset();
+        btn_save_->setEnabled(false);
     }
     else
     {

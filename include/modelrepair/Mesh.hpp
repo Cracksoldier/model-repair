@@ -3,6 +3,7 @@
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Surface_mesh.h>
 #include <cstddef>
+#include <optional>
 
 namespace modelrepair
 {
@@ -23,6 +24,9 @@ public:
     bool is_valid() const;      // combinatorial validity
     bool is_closed() const;     // no boundary halfedges
     bool is_manifold() const;   // no non-manifold vertices or edges
+
+    double surface_area() const;
+    std::optional<double> volume() const;  // nullopt if not closed
 
     void clear();
 
