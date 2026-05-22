@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include "modelrepair/io/MeshIO.hpp"
 #include "modelrepair/io/StlIO.hpp"
+#include "modelrepair/io/GlbIO.hpp"
 
 #include <filesystem>
 #include <cstring>
@@ -53,5 +54,19 @@ TEST_CASE("load() throws on unsupported extension", "[io]")
     auto tmp = fs::temp_directory_path() / "test.xyz";
     { std::ofstream f(tmp); f << "dummy"; }
     CHECK_THROWS_AS(load(tmp), std::runtime_error);
+    fs::remove(tmp);
+}
+
+TEST_CASE("GLB round-trip preserves topology", "[io][glb]")
+{
+    auto mesh = read_stl(MESH_DIR / "valid_cube.stl");
+    REQUIRE(mesh.num_faces() == 12);
+
+    auto tmp = fs::temp_directory_path() / "mr_test_cube.glb";
+    write_glb(mesh, tmp);
+
+    auto reloaded = read_glb(tmp);
+    CHECK(reloaded.num_vertices() == mesh.num_vertices());
+    CHECK(reloaded.num_faces()    == mesh.num_faces());
     fs::remove(tmp);
 }

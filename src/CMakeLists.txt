@@ -11,6 +11,7 @@ add_library(modelrepair SHARED
     io/StlIO.cpp
     io/ObjIO.cpp
     io/ThreeMFIO.cpp
+    io/GlbIO.cpp
     io/MeshIO.cpp
 )
 
@@ -34,6 +35,7 @@ target_link_libraries(modelrepair
         Eigen3::Eigen
     PRIVATE
         lib3mf
+        tinygltf
         modelrepair_warnings
 )
 

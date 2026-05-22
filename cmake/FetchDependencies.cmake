@@ -35,6 +35,16 @@ set(SPDLOG_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(SPDLOG_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(spdlog)
 
+# tinygltf — glTF/GLB mesh I/O (MIT)
+FetchContent_Declare(tinygltf
+    GIT_REPOSITORY https://github.com/syoyo/tinygltf.git
+    GIT_TAG        v2.8.21
+    GIT_SHALLOW    TRUE
+)
+set(TINYGLTF_INSTALL      OFF CACHE BOOL "" FORCE)
+set(TINYGLTF_HEADER_ONLY  ON  CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(tinygltf)
+
 # Catch2 — test framework (BSL-1.0)
 if(MODELREPAIR_BUILD_TESTS)
     FetchContent_Declare(Catch2

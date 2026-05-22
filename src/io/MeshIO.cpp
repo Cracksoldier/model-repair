@@ -2,6 +2,7 @@
 #include "modelrepair/io/StlIO.hpp"
 #include "modelrepair/io/ObjIO.hpp"
 #include "modelrepair/io/ThreeMFIO.hpp"
+#include "modelrepair/io/GlbIO.hpp"
 
 #include <algorithm>
 #include <stdexcept>
@@ -19,9 +20,10 @@ std::string infer_format(const std::filesystem::path& path)
 Mesh load(const std::filesystem::path& path)
 {
     const std::string ext = infer_format(path);
-    if (ext == ".stl")  return read_stl(path);
-    if (ext == ".obj")  return read_obj(path);
-    if (ext == ".3mf")  return read_3mf(path);
+    if (ext == ".stl")                    return read_stl(path);
+    if (ext == ".obj")                    return read_obj(path);
+    if (ext == ".3mf")                    return read_3mf(path);
+    if (ext == ".glb" || ext == ".gltf")  return read_glb(path);
     throw std::runtime_error("Unsupported file format '" + ext + "': " + path.string());
 }
 
@@ -31,6 +33,7 @@ void save(const Mesh& mesh, const std::filesystem::path& path, bool binary_stl)
     if (ext == ".stl") { write_stl(mesh, path, binary_stl); return; }
     if (ext == ".obj") { write_obj(mesh, path); return; }
     if (ext == ".3mf") { write_3mf(mesh, path); return; }
+    if (ext == ".glb") { write_glb(mesh, path); return; }
     throw std::runtime_error("Unsupported file format '" + ext + "': " + path.string());
 }
 
