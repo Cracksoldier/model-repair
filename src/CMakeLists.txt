@@ -8,6 +8,7 @@ add_library(modelrepair SHARED
     repairs/FixNormals.cpp
     repairs/FillHoles.cpp
     repairs/RemoveSelfIntersections.cpp
+    repairs/Decimate.cpp
     io/StlIO.cpp
     io/ObjIO.cpp
     io/ThreeMFIO.cpp

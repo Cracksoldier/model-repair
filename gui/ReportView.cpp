@@ -28,10 +28,16 @@ void ReportView::set_report(const modelrepair::RepairReport& r)
 
     // Summary row
     auto* summary = new QTreeWidgetItem(tree_);
-    summary->setText(0, "Summary");
+    summary->setText(0, r.diagnose_only ? "Diagnosis" : "Summary");
     summary->setText(1, QString("V: %1 → %2").arg(r.vertices_before).arg(r.vertices_after));
     summary->setText(2, QString("T: %1 → %2").arg(r.triangles_before).arg(r.triangles_after));
-    summary->setText(3, r.is_closed_after && r.is_manifold_after ? "✓ watertight" : "⚠ not watertight");
+
+    // Area / volume annotation appended to watertight status cell
+    QString stats = r.is_closed_after && r.is_manifold_after ? "✓ watertight" : "⚠ not watertight";
+    stats += QString("   Area: %1 mm²").arg(r.surface_area_after, 0, 'f', 1);
+    if (r.volume_after.has_value())
+        stats += QString("   Vol: %1 mm³").arg(*r.volume_after, 0, 'f', 1);
+    summary->setText(3, stats);
     QFont bold = summary->font(0);
     bold.setBold(true);
     for (int c = 0; c < 4; ++c)

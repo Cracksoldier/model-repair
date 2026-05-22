@@ -28,6 +28,13 @@ struct RepairOptions
     // Step 6 — self-intersections (slow; uses EPECK kernel internally)
     bool   remove_self_intersections   = true;
 
+    // Post-repair decimation
+    bool   decimate       = false;
+    double decimate_ratio = 0.5;   // fraction of faces to retain (0 < ratio ≤ 1)
+
+    // Diagnose only — run detection without modifying the mesh
+    bool   diagnose_only  = false;
+
     bool   verbose                     = false;
 };
 

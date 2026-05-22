@@ -1,5 +1,6 @@
 #include "RepairWorker.hpp"
 
+#include "modelrepair/Decimate.hpp"
 #include "modelrepair/RepairPipeline.hpp"
 #include "modelrepair/io/MeshIO.hpp"
 
@@ -50,6 +51,20 @@ void RepairWorker::run()
     {
         emit finished({}, {}, {}, QString::fromStdString(e.what()));
         return;
+    }
+
+    // Post-repair decimation
+    if (opts_.decimate && !report.diagnose_only)
+    {
+        auto dr = modelrepair::decimate(mesh, opts_.decimate_ratio);
+        modelrepair::StepReport sr;
+        sr.name         = "Decimate";
+        sr.was_run      = true;
+        sr.issues_found = dr.faces_before;
+        sr.issues_fixed = dr.faces_before - dr.faces_after;
+        sr.duration_ms  = dr.duration_ms;
+        report.steps.push_back(sr);
+        report.triangles_after = mesh.num_faces();
     }
 
     emit finished(report, std::move(before_mesh), std::move(mesh), {});

@@ -1,3 +1,4 @@
+#include "modelrepair/Decimate.hpp"
 #include "modelrepair/RepairPipeline.hpp"
 #include "modelrepair/RepairReport.hpp"
 #include "modelrepair/io/MeshIO.hpp"
@@ -21,8 +22,8 @@ int main(int argc, char* argv[])
 
     // Positional args
     fs::path input_path, output_path;
-    app.add_option("INPUT",  input_path,  "Input mesh (.stl, .obj, .3mf)")->required()->check(CLI::ExistingFile);
-    app.add_option("OUTPUT", output_path, "Output mesh (.stl, .obj, .3mf)")->required();
+    app.add_option("INPUT",  input_path,  "Input mesh (.stl, .obj, .3mf, .glb, .gltf)")->required()->check(CLI::ExistingFile);
+    app.add_option("OUTPUT", output_path, "Output mesh (.stl, .obj, .3mf, .glb, .gltf)"); // optional with --diagnose
 
     // Repair toggles
     RepairOptions opts;
@@ -53,10 +54,25 @@ int main(int argc, char* argv[])
     app.add_flag("-v,--verbose", verbose, "Print per-step progress");
     app.add_flag("-q,--quiet",   quiet,   "Suppress all output except errors");
 
+    bool   diagnose       = false;
+    double decimate_ratio = 0.0;
+    app.add_flag  ("--diagnose",  diagnose,
+                   "Report issues without modifying the mesh. OUTPUT is optional.");
+    app.add_option("--decimate",  decimate_ratio,
+                   "Decimate after repair: retain this fraction of faces (0.01–1.0).")
+       ->check(CLI::Range(0.01, 1.0));
+
     CLI11_PARSE(app, argc, argv);
+
+    if (!diagnose && output_path.empty())
+    {
+        std::cerr << "OUTPUT is required unless --diagnose is used.\n";
+        return 1;
+    }
 
     opts.fill_holes_smooth = !flat_fill;
     opts.verbose           = verbose;
+    opts.diagnose_only     = diagnose;
 
     // Configure logging
     auto logger = spdlog::stdout_color_mt("model-repair");
@@ -127,16 +143,41 @@ int main(int argc, char* argv[])
         logger->info("Report written to {}", report_path);
     }
 
-    // Save output
-    try
+    // Decimate (before saving, after repair)
+    if (decimate_ratio > 0.0 && !diagnose)
     {
-        logger->info("Saving {}", output_path.string());
-        modelrepair::io::save(mesh, output_path, !ascii_stl);
+        // Save repaired intermediate alongside the output
+        fs::path inter = output_path.parent_path()
+                       / (output_path.stem().string() + "_repaired"
+                          + output_path.extension().string());
+        try
+        {
+            modelrepair::io::save(mesh, inter, !ascii_stl);
+            logger->info("Repaired mesh saved to {}", inter.string());
+        }
+        catch (const std::exception& e)
+        {
+            logger->warn("Could not save repaired intermediate: {}", e.what());
+        }
+
+        auto dr = modelrepair::decimate(mesh, decimate_ratio);
+        logger->info("Decimate  {} -> {} faces  ({:.1f} ms)",
+                     dr.faces_before, dr.faces_after, dr.duration_ms);
     }
-    catch (const std::exception& e)
+
+    // Save output (skipped in diagnose mode)
+    if (!diagnose)
     {
-        logger->error("Save failed: {}", e.what());
-        return 4;
+        try
+        {
+            logger->info("Saving {}", output_path.string());
+            modelrepair::io::save(mesh, output_path, !ascii_stl);
+        }
+        catch (const std::exception& e)
+        {
+            logger->error("Save failed: {}", e.what());
+            return 4;
+        }
     }
 
     logger->info("Done. Manifold: {}, Closed: {}",

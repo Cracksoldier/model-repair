@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include "modelrepair/Decimate.hpp"
 #include "modelrepair/RepairPipeline.hpp"
 #include "modelrepair/io/MeshIO.hpp"
 
@@ -107,4 +108,48 @@ TEST_CASE("RepairReport format_json is valid JSON structure", "[report]")
     CHECK(json.find("{") != std::string::npos);
     CHECK(json.find("\"steps\"") != std::string::npos);
     CHECK(json.find("\"is_closed_after\"") != std::string::npos);
+}
+
+TEST_CASE("Diagnose mode leaves mesh unchanged", "[pipeline][diagnose]")
+{
+    auto mesh = load(MESH_DIR / "valid_cube.stl");
+    const auto v_before = mesh.num_vertices();
+    const auto f_before = mesh.num_faces();
+
+    RepairOptions opts;
+    opts.diagnose_only = true;
+    opts.remove_self_intersections = false;
+    auto report = RepairPipeline(opts).run(mesh);
+
+    CHECK(mesh.num_vertices() == v_before);
+    CHECK(mesh.num_faces()    == f_before);
+    CHECK(report.diagnose_only == true);
+    CHECK(report.triangles_after > 0);  // report reflects the copy
+}
+
+TEST_CASE("RepairReport includes area and volume for closed mesh", "[pipeline][stats]")
+{
+    auto mesh = load(MESH_DIR / "valid_cube.stl");
+    RepairOptions opts;
+    opts.remove_self_intersections = false;
+    auto report = RepairPipeline(opts).run(mesh);
+
+    CHECK(report.surface_area_before > 0.0);
+    CHECK(report.surface_area_after  > 0.0);
+    REQUIRE(report.volume_after.has_value());
+    CHECK(*report.volume_after > 0.0);
+}
+
+TEST_CASE("Decimate reduces face count", "[decimate]")
+{
+    auto mesh = load(MESH_DIR / "valid_cube.stl");
+    RepairOptions opts;
+    opts.remove_self_intersections = false;
+    RepairPipeline(opts).run(mesh);
+
+    const auto f_before = mesh.num_faces();
+    auto dr = decimate(mesh, 0.5);
+    CHECK(dr.faces_before == f_before);
+    CHECK(dr.faces_after  <= f_before);
+    CHECK(dr.duration_ms  >= 0.0);
 }

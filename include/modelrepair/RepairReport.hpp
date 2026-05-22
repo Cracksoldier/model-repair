@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -26,6 +27,14 @@ struct RepairReport
     bool is_valid_after    = false;
     bool is_manifold_after = false;
     bool is_closed_after   = false;
+
+    // Geometry stats — area always populated; volume only for closed meshes
+    double surface_area_before = 0.0;
+    double surface_area_after  = 0.0;
+    std::optional<double> volume_before;
+    std::optional<double> volume_after;
+
+    bool diagnose_only = false;
 
     std::vector<StepReport> steps;
 

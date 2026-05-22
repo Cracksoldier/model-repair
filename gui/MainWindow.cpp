@@ -38,7 +38,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     root->setContentsMargins(12, 12, 12, 12);
 
     // --- Drop zone ---
-    drop_label_ = new QLabel("Drop an STL / OBJ / 3MF file here\nor click Open");
+    drop_label_ = new QLabel("Drop an STL / OBJ / 3MF / GLB / glTF file here\nor click Open");
     drop_label_->setAlignment(Qt::AlignCenter);
     drop_label_->setStyleSheet(
         "border: 2px dashed #888; border-radius: 8px; padding: 24px; color: #555;");
@@ -93,24 +93,47 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     chk_smooth_fill_    = make_check("  Smooth fill (uncheck = flat fan)");
     chk_self_intersect_ = make_check("Remove self-intersections (slow)");
 
+    // Decimation
+    chk_decimate_ = make_check("Decimate after repair", false);
+    {
+        auto* row = new QHBoxLayout;
+        auto* lbl = new QLabel("  Retain fraction:");
+        spin_decimate_ratio_ = new QDoubleSpinBox;
+        spin_decimate_ratio_->setRange(0.01, 1.0);
+        spin_decimate_ratio_->setSingleStep(0.05);
+        spin_decimate_ratio_->setDecimals(2);
+        spin_decimate_ratio_->setValue(0.5);
+        spin_decimate_ratio_->setEnabled(false);
+        row->addWidget(lbl);
+        row->addWidget(spin_decimate_ratio_);
+        row->addStretch();
+        grp_layout->addLayout(row);
+        connect(chk_decimate_, &QCheckBox::toggled,
+                spin_decimate_ratio_, &QDoubleSpinBox::setEnabled);
+    }
+
     root->addWidget(grp);
 
     // --- Actions ---
     auto* btn_row = new QHBoxLayout;
-    btn_repair_ = new QPushButton("Repair");
+    btn_repair_   = new QPushButton("Repair");
     btn_repair_->setEnabled(false);
     btn_repair_->setDefault(true);
-    btn_save_   = new QPushButton("Save As…");
+    btn_diagnose_ = new QPushButton("Diagnose");
+    btn_diagnose_->setEnabled(false);
+    btn_save_     = new QPushButton("Save As…");
     btn_save_->setEnabled(false);
     btn_row->addWidget(btn_repair_);
+    btn_row->addWidget(btn_diagnose_);
     btn_row->addWidget(btn_save_);
     auto* btn_batch = new QPushButton("Batch Repair…");
     btn_row->addWidget(btn_batch);
     root->addLayout(btn_row);
 
-    connect(btn_repair_, &QPushButton::clicked, this, &MainWindow::on_repair_clicked);
-    connect(btn_save_,   &QPushButton::clicked, this, &MainWindow::on_save_clicked);
-    connect(btn_batch,   &QPushButton::clicked, this, [this]
+    connect(btn_repair_,   &QPushButton::clicked, this, &MainWindow::on_repair_clicked);
+    connect(btn_diagnose_, &QPushButton::clicked, this, &MainWindow::on_diagnose_clicked);
+    connect(btn_save_,     &QPushButton::clicked, this, &MainWindow::on_save_clicked);
+    connect(btn_batch,     &QPushButton::clicked, this, [this]
     {
         auto* batch = new BatchWindow(collect_options(), this);
         batch->setAttribute(Qt::WA_DeleteOnClose);
@@ -162,6 +185,7 @@ void MainWindow::set_input(const std::filesystem::path& path)
     before_mesh_.reset();
     repaired_mesh_.reset();
     btn_repair_->setEnabled(true);
+    btn_diagnose_->setEnabled(true);
     btn_save_->setEnabled(false);
     report_view_->clear();
     drop_label_->setText(QString::fromStdString(path.filename().string()));
@@ -181,6 +205,8 @@ modelrepair::RepairOptions MainWindow::collect_options() const
     o.max_hole_edges              = static_cast<std::size_t>(spin_max_hole_edges_->value());
     o.fill_holes_smooth           = chk_smooth_fill_->isChecked();
     o.remove_self_intersections   = chk_self_intersect_->isChecked();
+    o.decimate                    = chk_decimate_->isChecked();
+    o.decimate_ratio              = spin_decimate_ratio_->value();
     return o;
 }
 
@@ -188,13 +214,27 @@ void MainWindow::on_repair_clicked()
 {
     if (!input_path_)
         return;
+    start_worker(collect_options());
+}
 
+void MainWindow::on_diagnose_clicked()
+{
+    if (!input_path_)
+        return;
+    auto opts = collect_options();
+    opts.diagnose_only = true;
+    opts.decimate      = false;
+    start_worker(opts);
+}
+
+void MainWindow::start_worker(modelrepair::RepairOptions opts)
+{
     set_busy(true);
     progress_bar_->setValue(0);
     status_label_->setText("Loading…");
     report_view_->clear();
 
-    auto* worker = new RepairWorker(*input_path_, collect_options());
+    auto* worker = new RepairWorker(*input_path_, std::move(opts));
     worker_thread_ = new QThread(this);
     worker->moveToThread(worker_thread_);
 
@@ -234,15 +274,24 @@ void MainWindow::on_repair_finished(modelrepair::RepairReport report,
     repaired_mesh_ = std::move(after_mesh);
     report_view_->set_report(report);
     progress_bar_->setValue(progress_bar_->maximum());
-    status_label_->setText(
-        QString("Done — %1 manifold, %2 closed")
-            .arg(report.is_manifold_after ? "✓" : "✗")
-            .arg(report.is_closed_after   ? "✓" : "✗"));
-    btn_save_->setEnabled(true);
 
-    auto* preview = new PreviewWindow(*before_mesh_, *repaired_mesh_, this);
-    preview->setAttribute(Qt::WA_DeleteOnClose);
-    preview->show();
+    if (report.diagnose_only)
+    {
+        status_label_->setText("Diagnosis complete — no changes made");
+        // Save and preview are not available after diagnose
+    }
+    else
+    {
+        status_label_->setText(
+            QString("Done — %1 manifold, %2 closed")
+                .arg(report.is_manifold_after ? "✓" : "✗")
+                .arg(report.is_closed_after   ? "✓" : "✗"));
+        btn_save_->setEnabled(true);
+
+        auto* preview = new PreviewWindow(*before_mesh_, *repaired_mesh_, this);
+        preview->setAttribute(Qt::WA_DeleteOnClose);
+        preview->show();
+    }
 }
 
 void MainWindow::on_save_clicked()
@@ -278,6 +327,7 @@ void MainWindow::on_save_clicked()
 void MainWindow::set_busy(bool busy)
 {
     btn_repair_->setEnabled(!busy);
+    btn_diagnose_->setEnabled(!busy && input_path_.has_value());
     btn_save_->setEnabled(!busy && repaired_mesh_.has_value());
 }
 

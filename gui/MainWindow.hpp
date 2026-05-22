@@ -38,6 +38,7 @@ protected:
 private slots:
     void on_open_clicked();
     void on_repair_clicked();
+    void on_diagnose_clicked();
     void on_save_clicked();
     void on_progress(int step, int total, const QString& name);
     void on_repair_finished(modelrepair::RepairReport report,
@@ -49,6 +50,7 @@ private:
     void set_input(const std::filesystem::path& path);
     void set_busy(bool busy);
     modelrepair::RepairOptions collect_options() const;
+    void start_worker(modelrepair::RepairOptions opts);
 
     // Input / status
     QLabel*      drop_label_;
@@ -66,8 +68,13 @@ private:
     QCheckBox*    chk_smooth_fill_;
     QCheckBox*    chk_self_intersect_;
 
+    // Decimation option widgets
+    QCheckBox*      chk_decimate_;
+    QDoubleSpinBox* spin_decimate_ratio_;
+
     // Actions
     QPushButton* btn_repair_;
+    QPushButton* btn_diagnose_;
     QPushButton* btn_save_;
 
     // Results
