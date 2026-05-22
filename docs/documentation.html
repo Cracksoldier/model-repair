@@ -765,8 +765,8 @@
       <h3>Synopsis</h3>
       <pre><span class="cmd">model-repair</span> <span class="val">INPUT OUTPUT</span> [<span class="flag">OPTIONS</span>]
 
-  <span class="val">INPUT</span>   Input mesh file (.stl, .obj, .3mf) — must exist
-  <span class="val">OUTPUT</span>  Output mesh file (.stl, .obj, .3mf) — format from extension</pre>
+  <span class="val">INPUT</span>   Input mesh file (.stl, .obj, .3mf, .glb, .gltf) — must exist
+  <span class="val">OUTPUT</span>  Output mesh file (.stl, .obj, .3mf, .glb, .gltf) — format from extension</pre>
 
       <h3 id="cli-options" class="anchor">Options</h3>
 
@@ -889,7 +889,7 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
 
       <h4>Loading a file</h4>
       <p>
-        Drag and drop an STL, OBJ, or 3MF file onto the drop zone in the center of the window,
+        Drag and drop an STL, OBJ, 3MF, GLB, or glTF file onto the drop zone in the center of the window,
         or click <strong>Open file…</strong> to use a file dialog.
         The drop zone shows the loaded file's vertex and triangle count once loaded.
       </p>
@@ -926,7 +926,8 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
       <h4>Saving the result</h4>
       <p>
         Click <strong>Save…</strong> to open a save dialog. The output format is determined
-        by the file extension you choose (.stl writes binary STL, .obj writes OBJ, .3mf writes 3MF).
+        by the file extension you choose (.stl writes binary STL, .obj writes OBJ, .3mf writes 3MF,
+        .glb writes binary glTF, .gltf writes text glTF).
       </p>
 
       <h3 id="gui-preview" class="anchor">3D Preview Window</h3>
@@ -970,17 +971,17 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
       <h3 id="gui-batch" class="anchor">Batch Processing</h3>
       <p>
         The batch window lets you repair multiple files in one operation with a shared
-        configuration. Open it via <strong>File → Batch…</strong> in the main window.
+        configuration. Open it via the <strong>Batch Repair…</strong> button in the main window.
       </p>
 
       <h4>Workflow</h4>
       <ol>
-        <li>Drag and drop multiple STL/OBJ/3MF files onto the file list, or use the <strong>Add files…</strong> button.</li>
-        <li>Set an output directory with <strong>Choose output directory…</strong>. Repaired files are written there with the same filename.</li>
+        <li>Drag and drop multiple STL/OBJ/3MF/GLB/glTF files onto the file list, or use the <strong>Add Files…</strong> button. Remove selected entries with <strong>Remove</strong>.</li>
+        <li>Output files are saved alongside each input file with a <code>_repaired</code> suffix by default. Click <strong>Browse…</strong> to choose a different output directory.</li>
         <li>Configure repair options (same controls as the main window — applied to all files).</li>
-        <li>Click <strong>Start</strong>. A status table shows each file's progress: Pending → Running → Done / Failed.</li>
-        <li>Click <strong>Preview</strong> next to any completed file to open a 3D before/after comparison for that file.</li>
-        <li>Click <strong>Cancel</strong> to abort the batch after the current file finishes.</li>
+        <li>Click <strong>Start Repair</strong>. A status table shows each file's result: Filename / Status / Issues / Watertight / Time.</li>
+        <li>Select a completed row and click <strong>Preview Selected</strong> to open a 3D before/after comparison for that file.</li>
+        <li>Click <strong>Cancel</strong> to abort the batch after the current file finishes. The window cannot be closed while a repair is running.</li>
       </ol>
     </section>
 
@@ -1074,12 +1075,13 @@ std::cout &lt;&lt; report.format_text();
 
       <h3>I/O</h3>
       <pre><span class="cmt">// Format is inferred from the file extension</span>
-Mesh mesh = modelrepair::io::load(<span class="str">"model.stl"</span>);   <span class="cmt">// .stl .obj .3mf</span>
+Mesh mesh = modelrepair::io::load(<span class="str">"model.stl"</span>);   <span class="cmt">// .stl .obj .3mf .glb .gltf</span>
 modelrepair::io::save(mesh, <span class="str">"out.3mf"</span>);           <span class="cmt">// binary STL by default</span>
-modelrepair::io::save(mesh, <span class="str">"out.stl"</span>, <span class="val">false</span>);     <span class="cmt">// false = ASCII STL</span></pre>
+modelrepair::io::save(mesh, <span class="str">"out.stl"</span>, <span class="val">false</span>);     <span class="cmt">// false = ASCII STL</span>
+modelrepair::io::save(mesh, <span class="str">"out.glb"</span>);           <span class="cmt">// binary glTF 2.0</span></pre>
       <p>
         Per-format headers (<code>modelrepair/io/StlIO.hpp</code>, <code>ObjIO.hpp</code>,
-        <code>ThreeMFIO.hpp</code>) are also available for direct use.
+        <code>ThreeMFIO.hpp</code>, <code>GlbIO.hpp</code>) are also available for direct use.
       </p>
 
       <h3>CMake integration</h3>
@@ -1127,6 +1129,19 @@ modelrepair::io::save(mesh, <span class="str">"out.stl"</span>, <span class="val
         <li><strong>Read</strong>: Loads the first mesh object from the file. Multi-object 3MF files have only the first object repaired.</li>
         <li><strong>Write</strong>: Writes a single-object 3MF. Metadata and print settings from the input are not preserved.</li>
       </ul>
+
+      <h3>GLB / glTF 2.0</h3>
+      <p>
+        The binary (<code>.glb</code>) and text (<code>.gltf</code>) variants of glTF 2.0 — the
+        format used by Blender, Bambu Studio, PrusaSlicer, and most web 3D viewers. The library
+        wraps <a href="https://github.com/syoyo/tinygltf" target="_blank" rel="noopener">tinygltf</a>
+        v2.8.21 (fetched automatically by CMake).
+      </p>
+      <ul>
+        <li><strong>Read</strong>: Loads all triangle primitives from all meshes in the file. Non-triangle primitives and non-indexed geometry are skipped. Only geometry is imported; materials, textures, and node transforms are ignored.</li>
+        <li><strong>Write</strong>: Always writes binary GLB regardless of the extension passed to <code>write_glb</code>. Vertex positions are stored as VEC3 FLOAT; indices as SCALAR UNSIGNED_INT. A single mesh with one primitive is written; no materials or scene metadata beyond the default scene node.</li>
+        <li><strong>Note</strong>: stb_image is disabled at compile time — tinygltf is used in geometry-only mode.</li>
+      </ul>
     </section>
 
     <!-- ── Architecture ──────────────────────────────────────────────── -->
@@ -1144,7 +1159,7 @@ modelrepair::io::save(mesh, <span class="str">"out.stl"</span>, <span class="val
 │                     Step 5: FillHoles            │
 │                     Step 6: RemoveSelfIsect      │
 │                                                  │
-│  MeshIO ──────────► StlIO / ObjIO / ThreeMFIO    │
+│  MeshIO ──────────► StlIO / ObjIO / ThreeMFIO / GlbIO │
 └──────────────┬──────────────────────────────────┘
                │ links against
     ┌──────────┴──────────┐

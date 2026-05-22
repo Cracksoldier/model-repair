@@ -216,7 +216,7 @@
     </div>
     <div class="hero-stats">
       <div class="stat"><div class="stat-val">6</div><div class="stat-label">repair steps</div></div>
-      <div class="stat"><div class="stat-val">3</div><div class="stat-label">file formats</div></div>
+      <div class="stat"><div class="stat-val">4</div><div class="stat-label">file formats</div></div>
       <div class="stat"><div class="stat-val">2</div><div class="stat-label">frontends (CLI + GUI)</div></div>
       <div class="stat"><div class="stat-val">17</div><div class="stat-label">automated tests</div></div>
     </div>
@@ -296,6 +296,8 @@
       <span class="format-badge hl">STL ASCII</span>
       <span class="format-badge hl">OBJ</span>
       <span class="format-badge hl">3MF</span>
+      <span class="format-badge hl">GLB</span>
+      <span class="format-badge hl">glTF</span>
     </div>
   </div>
 </section>
@@ -305,7 +307,7 @@
   <div class="container">
     <p class="section-label">Quick Setup</p>
     <h2>Build from source</h2>
-    <p class="section-intro">model-repair requires CGAL 6, Eigen 3, Boost, and Qt 6. lib3mf, CLI11, spdlog, and Catch2 are downloaded automatically by CMake.</p>
+    <p class="section-intro">model-repair requires CGAL 6, Eigen 3, Boost, and Qt 6. lib3mf, tinygltf, CLI11, spdlog, and Catch2 are downloaded automatically by CMake.</p>
 
     <div class="tab-bar">
       <button class="tab-btn active" data-tab="arch">Arch / CachyOS</button>
@@ -335,7 +337,8 @@
 <span class="cmd">cd</span> model-repair
 <span class="cmd">cmake --preset</span> <span class="val">release</span>          <span class="cmt"># downloads lib3mf, spdlog, CLI11, Catch2</span>
 <span class="cmd">cmake --build</span> build/release <span class="flag">-j$(nproc)</span>
-<span class="cmt"># Binaries: build/release/cli/model-repair  and  build/release/gui/model-repair-gui</span></pre>
+<span class="cmt"># Binaries: build/release/cli/model-repair  and  build/release/gui/model-repair-gui</span>
+<span class="cmt"># Downloads: lib3mf, tinygltf, CLI11, spdlog, Catch2</span></pre>
 
     <div class="setup-run">
       <div>
@@ -354,10 +357,10 @@
         <div class="setup-run-label">Run the GUI</div>
         <pre><button class="copy-btn">copy</button><span class="cmd">build/release/gui/model-repair-gui</span>
 
-<span class="cmt"># Drop an STL/OBJ/3MF onto the window,
-# adjust options, click Repair.
-# A 3D before/after preview opens
-# automatically on success.</span></pre>
+<span class="cmt"># Drop an STL, OBJ, 3MF, GLB, or glTF
+# onto the window, adjust options,
+# click Repair. A 3D before/after
+# preview opens automatically.</span></pre>
       </div>
     </div>
 
