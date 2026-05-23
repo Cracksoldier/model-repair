@@ -16,6 +16,7 @@
 #include <QPushButton>
 #include <QSpinBox>
 #include <QThread>
+#include <QTimer>
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -45,12 +46,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     drop_label_->setMinimumHeight(80);
     root->addWidget(drop_label_);
 
-    auto* btn_open = new QPushButton("Open file…");
-    connect(btn_open, &QPushButton::clicked, this, &MainWindow::on_open_clicked);
-    root->addWidget(btn_open);
+    btn_open_ = new QPushButton("Open file…");
+    connect(btn_open_, &QPushButton::clicked, this, &MainWindow::on_open_clicked);
+    root->addWidget(btn_open_);
 
     // --- Options ---
-    auto* grp = new QGroupBox("Repair options");
+    opts_group_ = new QGroupBox("Repair options");
+    auto* grp = opts_group_;
     auto* grp_layout = new QVBoxLayout(grp);
 
     auto make_check = [&](const QString& label, bool checked = true) -> QCheckBox*
@@ -192,14 +194,14 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     btn_row->addWidget(btn_repair_);
     btn_row->addWidget(btn_diagnose_);
     btn_row->addWidget(btn_save_);
-    auto* btn_batch = new QPushButton("Batch Repair…");
-    btn_row->addWidget(btn_batch);
+    btn_batch_ = new QPushButton("Batch Repair…");
+    btn_row->addWidget(btn_batch_);
     root->addLayout(btn_row);
 
     connect(btn_repair_,   &QPushButton::clicked, this, &MainWindow::on_repair_clicked);
     connect(btn_diagnose_, &QPushButton::clicked, this, &MainWindow::on_diagnose_clicked);
     connect(btn_save_,     &QPushButton::clicked, this, &MainWindow::on_save_clicked);
-    connect(btn_batch,     &QPushButton::clicked, this, [this]
+    connect(btn_batch_,    &QPushButton::clicked, this, [this]
     {
         auto* batch = new BatchWindow(collect_options(), this);
         batch->setAttribute(Qt::WA_DeleteOnClose);
@@ -213,9 +215,14 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     progress_bar_->setValue(0);
     root->addWidget(progress_bar_);
 
+    auto* status_row = new QHBoxLayout;
     status_label_ = new QLabel;
-    status_label_->setAlignment(Qt::AlignLeft);
-    root->addWidget(status_label_);
+    status_label_->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    elapsed_label_ = new QLabel;
+    elapsed_label_->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    status_row->addWidget(status_label_, 1);
+    status_row->addWidget(elapsed_label_);
+    root->addLayout(status_row);
 
     // --- Report ---
     report_view_ = new ReportView;
@@ -403,6 +410,33 @@ void MainWindow::set_busy(bool busy)
     btn_repair_->setEnabled(!busy);
     btn_diagnose_->setEnabled(!busy && input_path_.has_value());
     btn_save_->setEnabled(!busy && repaired_mesh_.has_value());
+
+    btn_open_->setEnabled(!busy);
+    btn_batch_->setEnabled(!busy);
+    drop_label_->setEnabled(!busy);
+    opts_group_->setEnabled(!busy);
+
+    if (busy) {
+        elapsed_clock_.start();
+        elapsed_label_->setText("0:00");
+        if (!elapsed_timer_) {
+            elapsed_timer_ = new QTimer(this);
+            elapsed_timer_->setInterval(1000);
+            connect(elapsed_timer_, &QTimer::timeout,
+                    this, &MainWindow::on_elapsed_tick);
+        }
+        elapsed_timer_->start();
+    } else {
+        if (elapsed_timer_) elapsed_timer_->stop();
+    }
+}
+
+void MainWindow::on_elapsed_tick()
+{
+    qint64 total_s = elapsed_clock_.elapsed() / 1000;
+    elapsed_label_->setText(QString("%1:%2")
+        .arg(total_s / 60)
+        .arg(total_s % 60, 2, 10, QChar('0')));
 }
 
 } // namespace gui

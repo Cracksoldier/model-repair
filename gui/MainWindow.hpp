@@ -4,6 +4,7 @@
 #include "modelrepair/RepairReport.hpp"
 #include "modelrepair/Mesh.hpp"
 
+#include <QElapsedTimer>
 #include <QMainWindow>
 #include <QDragEnterEvent>
 #include <QDropEvent>
@@ -18,6 +19,7 @@ class QSpinBox;
 class QDoubleSpinBox;
 class QGroupBox;
 class QThread;
+class QTimer;
 
 namespace gui
 {
@@ -45,6 +47,7 @@ private slots:
                             modelrepair::Mesh before_mesh,
                             modelrepair::Mesh after_mesh,
                             QString error);
+    void on_elapsed_tick();
 
 private:
     void set_input(const std::filesystem::path& path);
@@ -55,9 +58,11 @@ private:
     // Input / status
     QLabel*      drop_label_;
     QLabel*      status_label_;
+    QLabel*      elapsed_label_;
     QProgressBar* progress_bar_;
 
     // Option widgets
+    QGroupBox*    opts_group_;
     QCheckBox*    chk_merge_verts_;
     QDoubleSpinBox* spin_merge_tol_;
     QCheckBox*    chk_remove_degen_;
@@ -86,6 +91,8 @@ private:
     QPushButton* btn_repair_;
     QPushButton* btn_diagnose_;
     QPushButton* btn_save_;
+    QPushButton* btn_open_;
+    QPushButton* btn_batch_;
 
     // Results
     ReportView* report_view_;
@@ -95,7 +102,9 @@ private:
     std::optional<modelrepair::Mesh>     before_mesh_;
     std::optional<modelrepair::Mesh>     repaired_mesh_;
 
-    QThread* worker_thread_ = nullptr;
+    QThread*      worker_thread_  = nullptr;
+    QTimer*       elapsed_timer_  = nullptr;
+    QElapsedTimer elapsed_clock_;
 };
 
 } // namespace gui
