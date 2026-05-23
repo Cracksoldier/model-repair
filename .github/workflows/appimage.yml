@@ -12,6 +12,10 @@ on:
         type: boolean
         required: false
         default: false
+      next_version:
+        description: 'Version to set in CMakeLists.txt after release (e.g. 0.2.0). Leave blank to skip.'
+        required: false
+        default: ''
 
 jobs:
   build:
@@ -86,3 +90,18 @@ jobs:
         name: model-repair ${{ inputs.version }}
         files: model-repair-*.AppImage
         draft: true
+
+    - name: Bump version in CMakeLists.txt
+      if: ${{ inputs.create_release && inputs.next_version != '' }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        NEXT="${{ inputs.next_version }}"
+        NEXT="${NEXT#v}"
+        sed -i -E "s/(project\(model-repair VERSION )[0-9]+\.[0-9]+\.[0-9]+/\1${NEXT}/" CMakeLists.txt
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add CMakeLists.txt
+        git commit -m "Bump version to ${NEXT}"
+        git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+        git push origin HEAD:${{ github.ref_name }}
