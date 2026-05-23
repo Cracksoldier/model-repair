@@ -1,6 +1,7 @@
 #include "RepairWorker.hpp"
 
 #include "modelrepair/Decimate.hpp"
+#include "modelrepair/Smooth.hpp"
 #include "modelrepair/RepairPipeline.hpp"
 #include "modelrepair/io/MeshIO.hpp"
 
@@ -51,6 +52,30 @@ void RepairWorker::run()
     {
         emit finished({}, {}, {}, QString::fromStdString(e.what()));
         return;
+    }
+
+    // Post-repair smoothing
+    if (opts_.smooth && !report.diagnose_only)
+    {
+        modelrepair::SmoothResult smr;
+        try
+        {
+            smr = modelrepair::smooth(mesh, opts_.smooth_iterations);
+        }
+        catch (const std::exception& e)
+        {
+            emit finished({}, {}, {}, QString("Smoothing failed: ") + e.what());
+            return;
+        }
+        modelrepair::StepReport sr;
+        sr.name         = "Smooth";
+        sr.was_run      = true;
+        sr.issues_found = 0;
+        sr.issues_fixed = 0;
+        sr.duration_ms  = smr.duration_ms;
+        report.steps.push_back(sr);
+        report.surface_area_after = mesh.surface_area();
+        report.volume_after       = mesh.volume();
     }
 
     // Post-repair decimation

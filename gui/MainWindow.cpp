@@ -93,6 +93,23 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     chk_smooth_fill_    = make_check("  Smooth fill (uncheck = flat fan)");
     chk_self_intersect_ = make_check("Remove self-intersections (slow)");
 
+    // Smoothing
+    chk_smooth_ = make_check("Smooth after repair", false);
+    {
+        auto* row = new QHBoxLayout;
+        auto* lbl = new QLabel("  Iterations:");
+        spn_smooth_iters_ = new QSpinBox;
+        spn_smooth_iters_->setRange(1, 50);
+        spn_smooth_iters_->setValue(3);
+        spn_smooth_iters_->setEnabled(false);
+        row->addWidget(lbl);
+        row->addWidget(spn_smooth_iters_);
+        row->addStretch();
+        grp_layout->addLayout(row);
+        connect(chk_smooth_, &QCheckBox::toggled,
+                spn_smooth_iters_, &QSpinBox::setEnabled);
+    }
+
     // Decimation
     chk_decimate_ = make_check("Decimate after repair", false);
     {
@@ -205,6 +222,8 @@ modelrepair::RepairOptions MainWindow::collect_options() const
     o.max_hole_edges              = static_cast<std::size_t>(spin_max_hole_edges_->value());
     o.fill_holes_smooth           = chk_smooth_fill_->isChecked();
     o.remove_self_intersections   = chk_self_intersect_->isChecked();
+    o.smooth            = chk_smooth_->isChecked();
+    o.smooth_iterations = static_cast<unsigned int>(spn_smooth_iters_->value());
     o.decimate                    = chk_decimate_->isChecked();
     o.decimate_ratio              = spin_decimate_ratio_->value();
     return o;
@@ -223,6 +242,7 @@ void MainWindow::on_diagnose_clicked()
         return;
     auto opts = collect_options();
     opts.diagnose_only = true;
+    opts.smooth        = false;
     opts.decimate      = false;
     start_worker(opts);
 }

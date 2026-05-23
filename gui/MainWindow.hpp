@@ -68,6 +68,10 @@ private:
     QCheckBox*    chk_smooth_fill_;
     QCheckBox*    chk_self_intersect_;
 
+    // Smoothing option widgets
+    QCheckBox* chk_smooth_;
+    QSpinBox*  spn_smooth_iters_;
+
     // Decimation option widgets
     QCheckBox*      chk_decimate_;
     QDoubleSpinBox* spin_decimate_ratio_;

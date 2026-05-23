@@ -1,4 +1,5 @@
 #include "modelrepair/Decimate.hpp"
+#include "modelrepair/Smooth.hpp"
 #include "modelrepair/RepairPipeline.hpp"
 #include "modelrepair/RepairReport.hpp"
 #include "modelrepair/Version.hpp"
@@ -57,8 +58,12 @@ int main(int argc, char* argv[])
 
     bool   diagnose       = false;
     double decimate_ratio = 0.0;
+    unsigned int smooth_iters = 0;
     app.add_flag  ("--diagnose",  diagnose,
                    "Report issues without modifying the mesh. OUTPUT is optional.");
+    app.add_option("--smooth",    smooth_iters,
+                   "Smooth after repair: number of angle-smoothing iterations (e.g. 3).")
+       ->check(CLI::Range(1u, 50u));
     app.add_option("--decimate",  decimate_ratio,
                    "Decimate after repair: retain this fraction of faces (0.01–1.0).")
        ->check(CLI::Range(0.01, 1.0));
@@ -142,6 +147,22 @@ int main(int argc, char* argv[])
         }
         rf << report.format_json();
         logger->info("Report written to {}", report_path);
+    }
+
+    // Smooth (before saving and decimation, after repair)
+    if (smooth_iters > 0 && !diagnose)
+    {
+        modelrepair::SmoothResult smr;
+        try
+        {
+            smr = modelrepair::smooth(mesh, smooth_iters);
+        }
+        catch (const std::exception& e)
+        {
+            logger->error("Smoothing failed: {}", e.what());
+            return 6;
+        }
+        logger->info("Smooth    {} iterations  ({:.1f} ms)", smooth_iters, smr.duration_ms);
     }
 
     // Decimate (before saving, after repair)

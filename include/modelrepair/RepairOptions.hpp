@@ -28,6 +28,10 @@ struct RepairOptions
     // Step 6 — self-intersections (slow; uses EPECK kernel internally)
     bool   remove_self_intersections   = true;
 
+    // Post-repair smoothing
+    bool         smooth            = false;
+    unsigned int smooth_iterations = 3;    // angle-smoothing passes
+
     // Post-repair decimation
     bool   decimate       = false;
     double decimate_ratio = 0.5;   // fraction of faces to retain (0 < ratio ≤ 1)
