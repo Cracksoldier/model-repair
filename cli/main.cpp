@@ -127,7 +127,63 @@ int main(int argc, char* argv[])
         return 3;
     }
 
-    // Print report
+    // Smooth (after repair, before decimate)
+    if (smooth_iters > 0 && !diagnose)
+    {
+        modelrepair::SmoothResult smr;
+        try
+        {
+            smr = modelrepair::smooth(mesh, smooth_iters);
+        }
+        catch (const std::exception& e)
+        {
+            logger->error("Smoothing failed: {}", e.what());
+            return 6;
+        }
+        modelrepair::StepReport sr;
+        sr.name        = "Smooth";
+        sr.was_run     = true;
+        sr.duration_ms = smr.duration_ms;
+        report.steps.push_back(sr);
+    }
+
+    // Decimate (after smooth)
+    if (decimate_ratio > 0.0 && !diagnose)
+    {
+        // Save pre-decimate intermediate (post-repair and post-smooth)
+        fs::path inter = output_path.parent_path()
+                       / (output_path.stem().string() + "_repaired"
+                          + output_path.extension().string());
+        try
+        {
+            modelrepair::io::save(mesh, inter, !ascii_stl);
+            logger->info("Pre-decimate mesh saved to {}", inter.string());
+        }
+        catch (const std::exception& e)
+        {
+            logger->warn("Could not save pre-decimate intermediate: {}", e.what());
+        }
+
+        modelrepair::DecimateResult dr;
+        try
+        {
+            dr = modelrepair::decimate(mesh, decimate_ratio);
+        }
+        catch (const std::exception& e)
+        {
+            logger->error("Decimation failed: {}", e.what());
+            return 5;
+        }
+        modelrepair::StepReport sr;
+        sr.name        = "Decimate";
+        sr.was_run     = true;
+        sr.issues_fixed = dr.faces_before - dr.faces_after;
+        sr.duration_ms = dr.duration_ms;
+        report.steps.push_back(sr);
+        report.triangles_after = mesh.num_faces();
+    }
+
+    // Print report (includes smooth and decimate steps if they ran)
     if (!quiet)
     {
         if (report_format == "json")
@@ -147,53 +203,6 @@ int main(int argc, char* argv[])
         }
         rf << report.format_json();
         logger->info("Report written to {}", report_path);
-    }
-
-    // Smooth (before saving and decimation, after repair)
-    if (smooth_iters > 0 && !diagnose)
-    {
-        modelrepair::SmoothResult smr;
-        try
-        {
-            smr = modelrepair::smooth(mesh, smooth_iters);
-        }
-        catch (const std::exception& e)
-        {
-            logger->error("Smoothing failed: {}", e.what());
-            return 6;
-        }
-        logger->info("Smooth    {} iterations  ({:.1f} ms)", smooth_iters, smr.duration_ms);
-    }
-
-    // Decimate (before saving, after repair)
-    if (decimate_ratio > 0.0 && !diagnose)
-    {
-        // Save repaired intermediate alongside the output
-        fs::path inter = output_path.parent_path()
-                       / (output_path.stem().string() + "_repaired"
-                          + output_path.extension().string());
-        try
-        {
-            modelrepair::io::save(mesh, inter, !ascii_stl);
-            logger->info("Repaired mesh saved to {}", inter.string());
-        }
-        catch (const std::exception& e)
-        {
-            logger->warn("Could not save repaired intermediate: {}", e.what());
-        }
-
-        modelrepair::DecimateResult dr;
-        try
-        {
-            dr = modelrepair::decimate(mesh, decimate_ratio);
-        }
-        catch (const std::exception& e)
-        {
-            logger->error("Decimation failed: {}", e.what());
-            return 5;
-        }
-        logger->info("Decimate  {} -> {} faces  ({:.1f} ms)",
-                     dr.faces_before, dr.faces_after, dr.duration_ms);
     }
 
     // Save output (skipped in diagnose mode)

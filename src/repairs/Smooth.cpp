@@ -16,8 +16,7 @@ SmoothResult smooth(Mesh& mesh, unsigned int iterations)
     PMP::angle_and_area_smoothing(mesh.cgal(),
         CGAL::parameters::number_of_iterations(iterations)
                         .use_area_smoothing(false)
-                        .use_Delaunay_flips(true)
-                        .use_safety_constraints(false));
+                        .use_Delaunay_flips(true));
 
     auto t1 = std::chrono::steady_clock::now();
 
