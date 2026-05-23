@@ -26,7 +26,7 @@ jobs:
         pacman -S --noconfirm \
           git cmake ninja base-devel \
           cgal eigen3 boost gmp mpfr \
-          qt6-base qt6-opengl \
+          qt6-base \
           wget fuse2 file
 
     - uses: actions/checkout@v4
