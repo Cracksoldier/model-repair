@@ -331,7 +331,7 @@ void MainWindow::start_worker(modelrepair::RepairOptions opts)
 void MainWindow::on_progress(int step, int total, const QString& name)
 {
     progress_bar_->setMaximum(total);
-    progress_bar_->setValue(step);
+    progress_bar_->setValue(step - 1); // step N started = N-1 steps done; 100% set on finish
     status_label_->setText(name);
     task_clock_.restart();
 }
