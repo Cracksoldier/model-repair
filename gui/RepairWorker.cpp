@@ -34,7 +34,7 @@ void RepairWorker::run()
 
     // Compute grand total so post-repair steps appear in the same bar.
     const bool do_post = !opts_.diagnose_only;
-    const int post_steps = (opts_.remesh   && do_post ? 1 : 0)
+    const int post_steps = (opts_.remesh   && do_post ? static_cast<int>(opts_.remesh_iterations) : 0)
                          + (opts_.smooth   && do_post ? 1 : 0)
                          + (opts_.decimate && do_post ? 1 : 0);
     constexpr int pipeline_total = 6;
@@ -69,17 +69,31 @@ void RepairWorker::run()
     // Post-repair remeshing (before smooth)
     if (opts_.remesh && !report.diagnose_only)
     {
-        emit progressChanged(++post_step, grand_total, "Remeshing");
+        const unsigned int total_iters = opts_.remesh_iterations;
+        // Bar advances one slot per iteration; emit first slot before remesh starts,
+        // callback advances it for each subsequent iteration. on_progress uses
+        // setValue(step - 1), so "step N starting" = N-1 done.
+        emit progressChanged(post_step + 1, grand_total,
+            QString("Remeshing 1/%1").arg(total_iters));
         modelrepair::RemeshResult rr;
         try
         {
-            rr = modelrepair::remesh(mesh, opts_.remesh_edge_length_factor, opts_.remesh_iterations);
+            rr = modelrepair::remesh(
+                mesh, opts_.remesh_edge_length_factor, total_iters,
+                opts_.smooth_crease_angle,
+                [this, post_step, grand_total, total_iters](unsigned int completed) {
+                    if (completed < total_iters) {
+                        emit progressChanged(post_step + completed + 1, grand_total,
+                            QString("Remeshing %1/%2").arg(completed + 1).arg(total_iters));
+                    }
+                });
         }
         catch (const std::exception& e)
         {
             emit finished({}, {}, {}, QString("Remeshing failed: ") + e.what());
             return;
         }
+        post_step += static_cast<int>(total_iters);
         modelrepair::StepReport sr;
         sr.name         = "Remesh";
         sr.was_run      = true;

@@ -19,6 +19,7 @@ add_executable(model-repair-tests
     test_mesh_io.cpp
     test_repairs.cpp
     test_pipeline.cpp
+    test_remesh.cpp
 )
 
 target_link_libraries(model-repair-tests

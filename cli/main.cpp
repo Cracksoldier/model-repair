@@ -152,7 +152,8 @@ int main(int argc, char* argv[])
         modelrepair::RemeshResult rr;
         try
         {
-            rr = modelrepair::remesh(mesh, opts.remesh_edge_length_factor, opts.remesh_iterations);
+            rr = modelrepair::remesh(mesh, opts.remesh_edge_length_factor, opts.remesh_iterations,
+                                     opts.smooth_crease_angle);
         }
         catch (const std::exception& e)
         {
