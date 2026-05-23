@@ -45,6 +45,12 @@ jobs:
     - name: Install into AppDir
       run: cmake --install build --prefix AppDir/usr --component Runtime
 
+    - name: Register custom libraries with the system linker
+      run: |
+        cp -P AppDir/usr/lib/libmodelrepair.so* /usr/lib/
+        cp -P build/_deps/lib3mf-build/lib3mf.so* /usr/lib/
+        ldconfig
+
     - name: Download linuxdeploy + Qt plugin
       run: |
         wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
@@ -56,7 +62,6 @@ jobs:
         APPIMAGE_EXTRACT_AND_RUN: "1"
         QMAKE: /usr/bin/qmake6
         OUTPUT: model-repair-${{ inputs.version }}-x86_64.AppImage
-        LD_LIBRARY_PATH: AppDir/usr/lib:build/_deps/lib3mf-build
         NO_STRIP: "1"
       run: |
         ./linuxdeploy-x86_64.AppImage \
