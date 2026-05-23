@@ -333,6 +333,7 @@ void MainWindow::on_progress(int step, int total, const QString& name)
     progress_bar_->setMaximum(total);
     progress_bar_->setValue(step);
     status_label_->setText(name);
+    task_clock_.restart();
 }
 
 void MainWindow::on_repair_finished(modelrepair::RepairReport report,
@@ -418,7 +419,8 @@ void MainWindow::set_busy(bool busy)
 
     if (busy) {
         elapsed_clock_.start();
-        elapsed_label_->setText("0:00");
+        task_clock_.start();
+        elapsed_label_->setText("0:00 / 0:00");
         if (!elapsed_timer_) {
             elapsed_timer_ = new QTimer(this);
             elapsed_timer_->setInterval(1000);
@@ -433,10 +435,11 @@ void MainWindow::set_busy(bool busy)
 
 void MainWindow::on_elapsed_tick()
 {
-    qint64 total_s = elapsed_clock_.elapsed() / 1000;
-    elapsed_label_->setText(QString("%1:%2")
-        .arg(total_s / 60)
-        .arg(total_s % 60, 2, 10, QChar('0')));
+    auto fmt = [](qint64 ms) -> QString {
+        qint64 s = ms / 1000;
+        return QString("%1:%2").arg(s / 60).arg(s % 60, 2, 10, QChar('0'));
+    };
+    elapsed_label_->setText(fmt(elapsed_clock_.elapsed()) + " / " + fmt(task_clock_.elapsed()));
 }
 
 } // namespace gui

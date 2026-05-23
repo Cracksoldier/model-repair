@@ -105,6 +105,7 @@ private:
     QThread*      worker_thread_  = nullptr;
     QTimer*       elapsed_timer_  = nullptr;
     QElapsedTimer elapsed_clock_;
+    QElapsedTimer task_clock_;
 };
 
 } // namespace gui
