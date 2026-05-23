@@ -56,6 +56,7 @@ jobs:
         APPIMAGE_EXTRACT_AND_RUN: "1"
         QMAKE: /usr/bin/qmake6
         OUTPUT: model-repair-${{ inputs.version }}-x86_64.AppImage
+        LD_LIBRARY_PATH: AppDir/usr/lib
       run: |
         ./linuxdeploy-x86_64.AppImage \
           --appdir AppDir \
