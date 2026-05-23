@@ -32,16 +32,25 @@ void RepairWorker::run()
 
     modelrepair::Mesh before_mesh = mesh;  // snapshot before in-place repair
 
+    // Compute grand total so post-repair steps appear in the same bar.
+    const bool do_post = !opts_.diagnose_only;
+    const int post_steps = (opts_.remesh   && do_post ? 1 : 0)
+                         + (opts_.smooth   && do_post ? 1 : 0)
+                         + (opts_.decimate && do_post ? 1 : 0);
+    constexpr int pipeline_total = 6;
+    const int grand_total = pipeline_total + post_steps;
+
     modelrepair::RepairPipeline pipeline(opts_);
 
-    // Post progress signals safely across threads.
+    // Emit directly — Qt's auto-connection detects the cross-thread receiver
+    // (MainWindow lives on the main thread) and uses QueuedConnection, posting
+    // to the main event loop which processes it between mesh operations.
+    // The old invokeMethod(this, lambda, QueuedConnection) queued to the worker
+    // thread itself, which has no exec() loop during run() and never delivered.
     pipeline.set_progress_callback(
-        [this](int step, int total, const std::string& name)
+        [this, grand_total](int step, int /*total*/, const std::string& name)
         {
-            QMetaObject::invokeMethod(this, [this, step, total, name]()
-            {
-                emit progressChanged(step, total, QString::fromStdString(name));
-            }, Qt::QueuedConnection);
+            emit progressChanged(step, grand_total, QString::fromStdString(name));
         });
 
     modelrepair::RepairReport report;
@@ -55,9 +64,12 @@ void RepairWorker::run()
         return;
     }
 
+    int post_step = pipeline_total;
+
     // Post-repair remeshing (before smooth)
     if (opts_.remesh && !report.diagnose_only)
     {
+        emit progressChanged(++post_step, grand_total, "Remeshing");
         modelrepair::RemeshResult rr;
         try
         {
@@ -83,6 +95,7 @@ void RepairWorker::run()
     // Post-repair smoothing
     if (opts_.smooth && !report.diagnose_only)
     {
+        emit progressChanged(++post_step, grand_total, "Smoothing");
         modelrepair::SmoothResult smr;
         try
         {
@@ -107,6 +120,7 @@ void RepairWorker::run()
     // Post-repair decimation
     if (opts_.decimate && !report.diagnose_only)
     {
+        emit progressChanged(++post_step, grand_total, "Decimating");
         modelrepair::DecimateResult dr;
         try
         {

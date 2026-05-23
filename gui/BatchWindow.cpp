@@ -86,7 +86,7 @@ BatchWindow::BatchWindow(modelrepair::RepairOptions initial_opts, QWidget* paren
     chk_self_intersect_  = make_check("Remove self-intersections (very slow — avoid on large meshes)", initial_opts.remove_self_intersections);
 
     // Remeshing
-    chk_remesh_ = make_check("Remesh (isotropic) before smoothing", initial_opts.remesh);
+    chk_remesh_ = make_check("Remesh (isotropic) before smoothing [experimental]", initial_opts.remesh);
     {
         auto* row = new QHBoxLayout;
         row->addWidget(new QLabel("  Edge length factor:"));
@@ -115,7 +115,7 @@ BatchWindow::BatchWindow(modelrepair::RepairOptions initial_opts, QWidget* paren
     }
 
     // Smoothing
-    chk_smooth_ = make_check("Smooth after repair", initial_opts.smooth);
+    chk_smooth_ = make_check("Smooth after repair [experimental]", initial_opts.smooth);
     {
         auto* row = new QHBoxLayout;
         row->addWidget(new QLabel("  Iterations:"));

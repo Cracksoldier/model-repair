@@ -94,7 +94,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     chk_self_intersect_ = make_check("Remove self-intersections (very slow — avoid on large meshes)", false);
 
     // Remeshing
-    chk_remesh_ = make_check("Remesh (isotropic) before smoothing", false);
+    chk_remesh_ = make_check("Remesh (isotropic) before smoothing [experimental]", false);
     {
         auto* row = new QHBoxLayout;
         auto* lbl = new QLabel("  Edge length factor:");
@@ -127,7 +127,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     }
 
     // Smoothing
-    chk_smooth_ = make_check("Smooth after repair", false);
+    chk_smooth_ = make_check("Smooth after repair [experimental]", false);
     {
         auto* row = new QHBoxLayout;
         auto* lbl = new QLabel("  Iterations:");
