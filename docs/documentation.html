@@ -1371,9 +1371,13 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
           <tr><td>Fill holes ☑</td><td><code>fill_holes</code></td><td>On</td></tr>
           <tr><td>Max hole edges (spinbox)</td><td><code>max_hole_edges</code></td><td>0 (all)</td></tr>
           <tr><td>Smooth fill ☑ (under Fill holes)</td><td><code>fill_holes_smooth</code></td><td>On</td></tr>
-          <tr><td>Remove self-intersections (slow) ☑</td><td><code>remove_self_intersections</code></td><td>On</td></tr>
-          <tr><td>Smooth after repair ☐</td><td><code>smooth</code></td><td>Off</td></tr>
+          <tr><td>Remove self-intersections (slow) ☐</td><td><code>remove_self_intersections</code></td><td>Off</td></tr>
+          <tr><td>Remesh (isotropic) before smoothing [experimental] ☐</td><td><code>remesh</code></td><td>Off</td></tr>
+          <tr><td>Edge length factor (spinbox, enabled when Remesh ☑)</td><td><code>remesh_edge_length_factor</code></td><td>0.80</td></tr>
+          <tr><td>Iterations (spinbox, enabled when Remesh ☑)</td><td><code>remesh_iterations</code></td><td>3</td></tr>
+          <tr><td>Smooth after repair [experimental] ☐</td><td><code>smooth</code></td><td>Off</td></tr>
           <tr><td>Iterations (spinbox, enabled when Smooth ☑)</td><td><code>smooth_iterations</code></td><td>3</td></tr>
+          <tr><td>Crease angle (spinbox, enabled when Smooth ☑)</td><td><code>smooth_crease_angle</code></td><td>45.0°</td></tr>
           <tr><td>Decimate after repair ☐</td><td><code>decimate</code></td><td>Off</td></tr>
           <tr><td>Retain fraction (spinbox, enabled when Decimate ☑)</td><td><code>decimate_ratio</code></td><td>0.50</td></tr>
         </tbody>
@@ -1383,11 +1387,12 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
       <p>
         Click <strong>Repair</strong>. The repair runs on a background thread
         (<code>RepairWorker</code> on a <code>QThread</code>) so the UI stays responsive.
-        A progress bar shows which step is currently running (e.g., "3/6 Fix non-manifold").
-        The report tree below it fills in per-step results as each step completes.
-        If <strong>Smooth after repair</strong> is enabled, a "Smooth" row is appended
-        after the six repair steps. If <strong>Decimate after repair</strong> is also enabled,
-        a "Decimate" row follows (smooth always runs before decimate).
+        While running, all input controls (options panel, Open file, Batch Repair, drop zone)
+        are disabled to prevent conflicting changes. A progress bar shows the current step
+        across all enabled operations — pipeline steps plus any enabled remesh, smooth, or
+        decimate steps — and an elapsed time counter (M:SS) on the right updates every second
+        to confirm the tool is still working. The report tree fills in per-step results as
+        each step completes. Execution order: repair → remesh → smooth → decimate.
       </p>
       <p>
         On success, the <a href="#gui-preview">3D Preview Window</a> opens automatically
