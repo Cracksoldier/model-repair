@@ -1485,16 +1485,20 @@ modelrepair::DecimateResult modelrepair::decimate(Mesh&amp; mesh, <span class="k
       </p>
 
       <h3>Running the AppImage</h3>
-      <pre><button class="copy-btn">copy</button><span class="cmt"># Make executable and launch the GUI</span>
-<span class="cmd">chmod</span> <span class="val">+x</span> model-repair-v0.2.0-x86_64.AppImage
-<span class="cmd">./model-repair-v0.2.0-x86_64.AppImage</span>
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Set the version tag from the Releases page, then download</span>
+<span class="val">VERSION</span>=v0.1.0
+<span class="cmd">wget</span> <span class="str">https://github.com/Cracksoldier/3d-print-model-repair/releases/download/<span class="val">${VERSION}</span>/model-repair-<span class="val">${VERSION}</span>-x86_64.AppImage</span>
+<span class="cmd">chmod</span> <span class="val">+x</span> model-repair-<span class="val">${VERSION}</span>-x86_64.AppImage
+
+<span class="cmt"># Launch the GUI</span>
+<span class="cmd">./model-repair-<span class="val">${VERSION}</span>-x86_64.AppImage</span>
 
 <span class="cmt"># Access the CLI inside the AppImage</span>
-<span class="cmd">./model-repair-v0.2.0-x86_64.AppImage</span> <span class="flag">--appimage-extract-and-run</span> \
+<span class="cmd">./model-repair-<span class="val">${VERSION}</span>-x86_64.AppImage</span> <span class="flag">--appimage-extract-and-run</span> \
   broken.stl repaired.stl <span class="flag">--verbose</span>
 
 <span class="cmt"># Or extract all contents and use the binaries directly</span>
-<span class="cmd">./model-repair-v0.2.0-x86_64.AppImage</span> <span class="flag">--appimage-extract</span>
+<span class="cmd">./model-repair-<span class="val">${VERSION}</span>-x86_64.AppImage</span> <span class="flag">--appimage-extract</span>
 <span class="cmd">./squashfs-root/usr/bin/model-repair</span> broken.stl repaired.stl</pre>
 
       <div class="callout info">
@@ -1518,7 +1522,7 @@ modelrepair::DecimateResult modelrepair::decimate(Mesh&amp; mesh, <span class="k
       <table>
         <thead><tr><th>Input</th><th>Example</th><th>Description</th></tr></thead>
         <tbody>
-          <tr><td><code>version</code></td><td><code>v0.2.0</code></td><td>Git tag name and AppImage filename label. Defaults to <code>dev</code> for test builds.</td></tr>
+          <tr><td><code>version</code></td><td><code>v0.1.0</code></td><td>Git tag name and AppImage filename label. Defaults to <code>dev</code> for test builds.</td></tr>
           <tr><td><code>create_release</code></td><td><code>true</code></td><td>Create a draft GitHub Release with the AppImage attached and push the git tag.</td></tr>
           <tr><td><code>next_version</code></td><td><code>0.2.1</code></td><td>After the release, update <code>CMakeLists.txt</code> and push a version-bump commit to <code>main</code>. Leave blank to skip.</td></tr>
         </tbody>

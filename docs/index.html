@@ -350,15 +350,16 @@
     </div>
 
     <div id="tab-appimage" class="tab-panel active">
-      <pre><button class="copy-btn">copy</button><span class="cmt"># Download the latest AppImage from GitHub Releases</span>
-<span class="cmd">wget</span> <span class="str">https://github.com/Cracksoldier/3d-print-model-repair/releases/latest/download/model-repair-v0.2.0-x86_64.AppImage</span>
-<span class="cmd">chmod</span> <span class="val">+x</span> model-repair-v0.2.0-x86_64.AppImage
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Set the version tag from the Releases page, then download</span>
+<span class="val">VERSION</span>=v0.1.0
+<span class="cmd">wget</span> <span class="str">https://github.com/Cracksoldier/3d-print-model-repair/releases/download/<span class="val">${VERSION}</span>/model-repair-<span class="val">${VERSION}</span>-x86_64.AppImage</span>
+<span class="cmd">chmod</span> <span class="val">+x</span> model-repair-<span class="val">${VERSION}</span>-x86_64.AppImage
 
 <span class="cmt"># Launch the GUI</span>
-<span class="cmd">./model-repair-v0.2.0-x86_64.AppImage</span>
+<span class="cmd">./model-repair-<span class="val">${VERSION}</span>-x86_64.AppImage</span>
 
-<span class="cmt"># Or run the CLI (extract first, then use the bundled binary)</span>
-<span class="cmd">./model-repair-v0.2.0-x86_64.AppImage</span> <span class="flag">--appimage-extract-and-run</span> \
+<span class="cmt"># Or run the CLI</span>
+<span class="cmd">./model-repair-<span class="val">${VERSION}</span>-x86_64.AppImage</span> <span class="flag">--appimage-extract-and-run</span> \
   broken.stl repaired.stl <span class="flag">--verbose</span></pre>
       <p style="font-size:0.875rem;color:var(--muted);">
         The AppImage bundles Qt 6, libmodelrepair, and all dependencies. It runs on any x86-64 Linux with glibc ≥ 2.17.
