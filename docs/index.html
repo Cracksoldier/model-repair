@@ -212,7 +212,11 @@
       bad normals, open holes, and self-intersections — in a single pass.
     </p>
     <div class="hero-actions">
-      <a class="btn btn-primary" href="#setup">Get Started</a>
+      <a class="btn btn-primary" href="https://github.com/Cracksoldier/model-repair/releases/latest" target="_blank" rel="noopener">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.75 14A1.75 1.75 0 011 12.25v-2.5a.75.75 0 011.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 00.25-.25v-2.5a.75.75 0 011.5 0v2.5A1.75 1.75 0 0113.25 14H2.75zM7.25 7.689L4.03 4.469a.749.749 0 11-1.06 1.061l4.5 4.5a.75.75 0 001.06 0l4.5-4.5a.749.749 0 00-1.06-1.061L8.75 7.689V1.75a.75.75 0 00-1.5 0v5.939z"/></svg>
+        Download AppImage
+      </a>
+      <a class="btn btn-secondary" href="#setup">Build from Source</a>
       <a class="btn btn-secondary" href="documentation.html">Documentation →</a>
     </div>
     <div class="hero-stats">
@@ -328,16 +332,35 @@
 <section id="setup">
   <div class="container">
     <p class="section-label">Quick Setup</p>
-    <h2>Build from source</h2>
-    <p class="section-intro">model-repair requires CGAL 6, Eigen 3, Boost, and Qt 6. lib3mf, tinygltf, CLI11, spdlog, and Catch2 are downloaded automatically by CMake.</p>
+    <h2>Install or build</h2>
+    <p class="section-intro">The easiest way to get started is the pre-built AppImage — no installation required. Or build from source if you need CGAL 6 features on your distro.</p>
 
     <div class="tab-bar">
-      <button class="tab-btn active" data-tab="arch">Arch / CachyOS</button>
+      <button class="tab-btn active" data-tab="appimage">AppImage (any distro)</button>
+      <button class="tab-btn" data-tab="arch">Arch / CachyOS</button>
       <button class="tab-btn" data-tab="ubuntu">Ubuntu / Debian</button>
       <button class="tab-btn" data-tab="fedora">Fedora</button>
     </div>
 
-    <div id="tab-arch" class="tab-panel active">
+    <div id="tab-appimage" class="tab-panel active">
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Download the latest AppImage from GitHub Releases</span>
+<span class="cmd">wget</span> <span class="str">https://github.com/Cracksoldier/model-repair/releases/latest/download/model-repair-v0.2.0-x86_64.AppImage</span>
+<span class="cmd">chmod</span> <span class="val">+x</span> model-repair-v0.2.0-x86_64.AppImage
+
+<span class="cmt"># Launch the GUI</span>
+<span class="cmd">./model-repair-v0.2.0-x86_64.AppImage</span>
+
+<span class="cmt"># Or run the CLI (extract first, then use the bundled binary)</span>
+<span class="cmd">./model-repair-v0.2.0-x86_64.AppImage</span> <span class="flag">--appimage-extract-and-run</span> \
+  broken.stl repaired.stl <span class="flag">--verbose</span></pre>
+      <p style="font-size:0.875rem;color:var(--muted);">
+        The AppImage bundles Qt 6, libmodelrepair, and all dependencies. It runs on any x86-64 Linux with glibc ≥ 2.17.
+        FUSE is <em>not</em> required — the AppImage self-extracts automatically.
+        Download links for each release are on the <a href="https://github.com/Cracksoldier/model-repair/releases" target="_blank" rel="noopener">GitHub Releases page</a>.
+      </p>
+    </div>
+
+    <div id="tab-arch" class="tab-panel">
       <pre><button class="copy-btn">copy</button><span class="cmt"># Install system dependencies</span>
 <span class="cmd">sudo pacman -S</span> <span class="val">cgal eigen3 boost gmp mpfr qt6-base cmake git</span></pre>
     </div>

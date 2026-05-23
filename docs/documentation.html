@@ -285,6 +285,12 @@
       <a href="#formats">File Formats</a>
       <a href="#architecture">Architecture</a>
     </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Distribution</div>
+      <a href="#appimage">AppImage Release</a>
+      <a href="#appimage-workflow" class="sub">Workflow inputs</a>
+      <a href="#appimage-version" class="sub">Version bump</a>
+    </div>
   </aside>
 
   <!-- Main content -->
@@ -1459,6 +1465,84 @@ modelrepair::DecimateResult modelrepair::decimate(Mesh&amp; mesh, <span class="k
           <tr><td><code>release-nogui</code></td><td>lib + CLI + tests</td><td>No Qt dependency. Use for headless servers or CI.</td></tr>
         </tbody>
       </table>
+    </section>
+
+    <!-- ── AppImage ─────────────────────────────────────────────────── -->
+    <section id="appimage" class="anchor">
+      <h2>AppImage Release</h2>
+      <p>
+        Pre-built Linux AppImages are published on the
+        <a href="https://github.com/Cracksoldier/model-repair/releases" target="_blank" rel="noopener">GitHub Releases page</a>.
+        An AppImage is a self-contained executable that bundles Qt 6, libmodelrepair, lib3mf,
+        and all other runtime dependencies. It runs on any x86-64 Linux without installation or root access.
+      </p>
+
+      <h3>Running the AppImage</h3>
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Make executable and launch the GUI</span>
+<span class="cmd">chmod</span> <span class="val">+x</span> model-repair-v0.2.0-x86_64.AppImage
+<span class="cmd">./model-repair-v0.2.0-x86_64.AppImage</span>
+
+<span class="cmt"># Access the CLI inside the AppImage</span>
+<span class="cmd">./model-repair-v0.2.0-x86_64.AppImage</span> <span class="flag">--appimage-extract-and-run</span> \
+  broken.stl repaired.stl <span class="flag">--verbose</span>
+
+<span class="cmt"># Or extract all contents and use the binaries directly</span>
+<span class="cmd">./model-repair-v0.2.0-x86_64.AppImage</span> <span class="flag">--appimage-extract</span>
+<span class="cmd">./squashfs-root/usr/bin/model-repair</span> broken.stl repaired.stl</pre>
+
+      <div class="callout info">
+        <strong>FUSE is not required.</strong>
+        The AppImage uses <code>APPIMAGE_EXTRACT_AND_RUN=1</code> internally, so it
+        self-extracts to a temporary directory without needing a FUSE mount. This works
+        in containers and restricted environments.
+      </div>
+
+      <h2 id="appimage-workflow" class="anchor">Workflow Inputs</h2>
+      <p>
+        Releases are built by a manually triggered GitHub Actions workflow
+        (<code>.github/workflows/appimage.yml</code>). The workflow runs inside an
+        <code>archlinux:latest</code> Docker container — the only way to get CGAL 6.x in CI,
+        since Ubuntu ships CGAL 5.x.
+      </p>
+      <p>
+        Trigger it via <strong>Actions → Build AppImage → Run workflow</strong>:
+      </p>
+
+      <table>
+        <thead><tr><th>Input</th><th>Example</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>version</code></td><td><code>v0.2.0</code></td><td>Git tag name and AppImage filename label. Defaults to <code>dev</code> for test builds.</td></tr>
+          <tr><td><code>create_release</code></td><td><code>true</code></td><td>Create a draft GitHub Release with the AppImage attached and push the git tag.</td></tr>
+          <tr><td><code>next_version</code></td><td><code>0.2.1</code></td><td>After the release, update <code>CMakeLists.txt</code> and push a version-bump commit to <code>main</code>. Leave blank to skip.</td></tr>
+        </tbody>
+      </table>
+
+      <p>
+        When <code>create_release</code> is false, the AppImage is still built and uploaded
+        as a workflow artifact — useful for testing packaging changes without making a release.
+      </p>
+
+      <h2 id="appimage-version" class="anchor">Version Bump</h2>
+      <p>
+        If <code>next_version</code> is provided, the workflow performs these steps after
+        the release is created:
+      </p>
+      <ol>
+        <li>Updates the <code>VERSION</code> field in <code>CMakeLists.txt</code> (e.g. <code>0.1.0</code> → <code>0.2.0</code>).</li>
+        <li>Commits the change as <code>github-actions[bot]</code>.</li>
+        <li>Pushes the commit to the branch that triggered the workflow (usually <code>main</code>).</li>
+      </ol>
+      <p>
+        The released tag (e.g. <code>v0.1.0</code>) remains pinned to the pre-bump commit —
+        the exact source that was used to build the AppImage. The <code>main</code> branch
+        then moves forward to the development version.
+      </p>
+
+      <div class="callout tip">
+        <strong>Releases are created as drafts.</strong>
+        After the workflow succeeds, go to GitHub Releases, review the draft, add release
+        notes, and publish it. The AppImage artifact is already attached.
+      </div>
     </section>
 
   </main>

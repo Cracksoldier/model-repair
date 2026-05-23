@@ -59,6 +59,35 @@ LD_LIBRARY_PATH=build/debug/src \
 build/debug/gui/model-repair-gui
 ```
 
+## Release
+
+Releases are built as Linux AppImages via a manually triggered GitHub Actions workflow.
+
+### Workflow: `.github/workflows/appimage.yml`
+
+Trigger via **Actions → Build AppImage → Run workflow** with three inputs:
+
+| Input | Example | Description |
+|---|---|---|
+| `version` | `v0.2.0` | Git tag and artifact label for the release |
+| `create_release` | `true` | Create a draft GitHub Release with the AppImage attached |
+| `next_version` | `0.2.1` | Version to write into `CMakeLists.txt` after the release |
+
+**Workflow steps:**
+1. Builds inside `archlinux:latest` (required — CGAL 6.x is only available on Arch)
+2. `cmake --install --component Runtime` into `AppDir/usr/`
+3. Copies `libmodelrepair.so*` and `lib3mf.so*` into `/usr/lib` so `ldd` resolves them normally
+4. Downloads and runs `linuxdeploy` + `linuxdeploy-plugin-qt` to bundle all Qt and system dependencies
+5. Uploads the AppImage as a workflow artifact
+6. If `create_release=true`: creates a draft GitHub Release and pushes a git tag
+7. If `next_version` is also set: bumps `project(... VERSION ...)` in `CMakeLists.txt` and pushes the commit to `main`
+
+**Key implementation constraints:**
+- `APPIMAGE_EXTRACT_AND_RUN=1` — linuxdeploy is itself an AppImage; this bypasses FUSE (unavailable in Docker containers)
+- `NO_STRIP=1` — linuxdeploy's bundled `strip` binary predates the `.relr.dyn` ELF section used by modern Arch packages and would crash
+- Custom libs are copied to `/usr/lib` rather than using `LD_LIBRARY_PATH`, because `LD_LIBRARY_PATH=AppDir/usr/lib` causes `qmake6` to load the rpath-patched Qt libs from AppDir and report wrong `QT_INSTALL_LIBS`, breaking `linuxdeploy-plugin-qt`
+- The release is created as a **draft** — review and publish it manually on GitHub
+
 ## Architecture
 
 The codebase is split into a shared library, two frontends, and a test suite.
