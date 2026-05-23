@@ -273,6 +273,8 @@
       <a href="#smooth">Mesh Smoothing</a>
       <a href="#smooth-how" class="sub">How it works</a>
       <a href="#smooth-pitfalls" class="sub">Pitfalls</a>
+      <a href="#remesh">Isotropic Remeshing</a>
+      <a href="#remesh-workflow" class="sub">Workflow tips</a>
       <a href="#decimate">Mesh Decimation</a>
     </div>
     <div class="sidebar-section">
@@ -942,17 +944,39 @@ std::cout &lt;&lt; dr.faces_before &lt;&lt; <span class="str">" → "</span> &lt
       </div>
 
       <h3 id="smooth-how" class="anchor">How it works</h3>
-      <p>
-        Each call to <code>smooth()</code> runs two passes in sequence:
-      </p>
 
-      <h4>Pass 1 — Uniform Laplacian smoothing (λ = 0.5)</h4>
+      <h4>Cotangent-weighted feature-preserving Laplacian (λ = 0.5)</h4>
       <p>
-        Each iteration moves every interior vertex halfway toward the centroid of its
-        immediate (1-ring) neighbours. On meshes where vertex positions are displaced from
-        the smooth surface — voxel steps, scan noise, jagged CAD tessellations — this
-        converges the vertices toward their ideal positions quickly: 3 iterations removes
-        ~87 % of high-frequency irregularity.
+        Each iteration moves every interior vertex toward a weighted average of its
+        1-ring neighbours. The weight for each neighbour is <strong>cot(α) + cot(β)</strong>
+        — the cotangents of the angles opposite the shared edge in its two adjacent triangles.
+        This is the standard discrete Laplace-Beltrami operator: it correctly reflects the
+        geometry of irregular triangulations and produces visibly less distortion per
+        iteration than uniform averaging.
+      </p>
+      <p>
+        <strong>Feature preservation via soft crease falloff.</strong>
+        Each neighbour's weight is additionally scaled by a factor that depends on the
+        dihedral angle of the shared edge. For a perfectly flat edge the scale is 1.0
+        (full contribution). At the <em>crease angle</em> threshold the scale reaches 0.0
+        (excluded). Between the two the scale decreases linearly — so edges near the
+        threshold contribute partially rather than being hard-cut. The result: large flat
+        surfaces smooth aggressively, sharp seam edges are preserved as hard barriers,
+        and mild curvature features (facial geometry, subtle costume details) erode
+        significantly more slowly.
+      </p>
+      <div class="callout info">
+        <strong>Crease angle guide:</strong>
+        20–30° = preserve almost all curvature, minimal smoothing of soft features;
+        45° (default) = good balance for organic meshes;
+        80°+ = smooth aggressively, only the sharpest seams survive.
+      </div>
+      <p>
+        <strong>Volume preservation.</strong>
+        Laplacian smoothing shrinks the mesh slightly each iteration. After all passes,
+        if the mesh is closed (watertight), the vertices are scaled uniformly around
+        their centroid to restore the original volume. The Before/After report will show
+        <code>volume_before ≈ volume_after</code> for most inputs.
       </p>
       <div class="callout warn">
         <strong>Effective only on meshes with surface irregularities.</strong>
@@ -960,96 +984,78 @@ std::cout &lt;&lt; dr.faces_before &lt;&lt; <span class="str">" → "</span> &lt
         already close to their ideal locations. Laplacian smoothing can only move each
         vertex toward its neighbours' centroid, which barely changes for regular geometry.
         The visible "faceting" of a coarse sphere (caused by flat shading of large faces)
-        cannot be removed by smoothing — only by adding more geometry or switching to
-        smooth shading.
+        cannot be removed by smoothing alone — combine with <a href="#remesh">Isotropic Remeshing</a>
+        to add geometry first.
       </div>
-      <p>
-        No sparse linear solver is required. The implementation works reliably on any valid
-        manifold mesh, regardless of scale.
-      </p>
-
-      <h4>Pass 2 — Triangle quality cleanup (<code>PMP::angle_and_area_smoothing</code>)</h4>
-      <p>
-        A single pass of angle smoothing with Delaunay edge flips runs after the Laplacian
-        steps. Laplacian moves can distort triangle shapes (producing long, thin slivers).
-        This cleanup pass examines each interior edge and flips it if the flip improves
-        the <em>Delaunay criterion</em> (locally maximises the minimum angle in the two
-        surrounding triangles), and adjusts vertex positions to reduce dihedral angle error.
-        The result is a mesh that is both smoother in shape and better conditioned for
-        rendering and further operations.
-      </p>
 
       <h3 id="smooth-pitfalls" class="anchor">Pitfalls</h3>
 
-      <h4>1. Volume shrinkage</h4>
+      <h4>1. Volume shrinkage on open meshes</h4>
       <p>
-        Each iteration moves vertices toward the interior of the mesh, shrinking it slightly.
-        For typical irregular meshes the volume loss is roughly 2–4 % per 3 iterations and
-        accumulates with higher counts. If dimensional accuracy matters (e.g. for press-fit
-        parts), use the minimum number of iterations that achieves the desired smoothness,
-        verify the result in the Before/After preview, and check the volume change shown
-        in the report.
+        Volume is automatically restored after smoothing for closed (watertight) meshes.
+        Open meshes do not have a well-defined volume, so shrinkage is not corrected.
+        If dimensional accuracy matters for an open mesh, use the minimum number of
+        iterations and verify the result in the Before/After preview.
       </p>
 
       <h4>2. Sharp feature erosion</h4>
       <p>
-        Smoothing moves every interior vertex. It does not distinguish between a blocky
-        step you want to remove and a deliberate sharp edge you want to keep (such as a
-        text emboss, a gear tooth, or a mechanical chamfer). If your mesh has intentional
-        sharp features, smoothing will erode them. Use a low iteration count (1–3) and
-        inspect the preview carefully. Mechanical parts with precise corners are generally
-        not good candidates for smoothing.
+        The crease angle controls how aggressively sharp edges are protected.
+        At the default 45°, edges with a dihedral angle larger than 45° act as smoothing
+        barriers. Mechanical parts with precise corners (text emboss, gear teeth, chamfers)
+        may still erode if the crease angle is too high — lower it to 20–30° or avoid
+        smoothing altogether for precision parts.
       </p>
 
-      <h4>3. Voxel meshes and residual staircasing</h4>
+      <h4>3. Coarse flat surfaces — smoothing alone is not enough</h4>
       <p>
-        Blocky voxel exports typically consist of axis-aligned faces meeting at 90°.
-        A few smoothing iterations will round these corners significantly. Increasing
-        iterations helps, but very high counts risk over-smoothing
-        features that should remain recognisable. 5–10 iterations is a practical
-        starting point for voxel meshes.
+        On a low-poly mesh with large flat triangles (e.g. a character body surface exported
+        from a game engine), the flat faceting is caused by too few triangles, not by
+        misplaced vertices. Laplacian smoothing can only move existing vertices; it cannot
+        add the interior vertices needed to represent smooth curvature. Use
+        <a href="#remesh">Isotropic Remeshing</a> before smoothing to subdivide those
+        coarse faces first.
       </p>
 
       <h4>4. Open meshes and boundary drift</h4>
       <p>
-        Smoothing works on meshes that still have boundary edges (open holes). The
-        safety constraints do not pin boundary vertices in place — they can drift,
-        causing the boundary curve to become irregular. If preserving a specific
-        boundary shape is important, either run smoothing only on closed (watertight)
-        meshes, or enable hole filling before smoothing.
+        Smoothing works on meshes that still have boundary edges (open holes). Boundary
+        vertices are skipped (not moved), so boundary curves are preserved. Interior
+        vertices adjacent to the boundary can still drift slightly. Enable hole filling
+        before smoothing if preserving hole boundaries is important.
       </p>
 
       <h4>5. Iteration count has diminishing returns</h4>
       <p>
-        Practically, the biggest improvement happens in the first 3–5 iterations.
-        Beyond 10, gains in smoothness become small while the cumulative volume
-        shrinkage and feature erosion continue to grow. The default of 3 iterations
-        is deliberately conservative — start there and increase if the result is
-        still too rough.
+        The biggest improvement happens in the first 3–5 iterations. Beyond 10, gains in
+        smoothness become small while feature erosion continues to grow. The default of
+        3 iterations is deliberately conservative — start there and increase only if
+        the result is still too rough.
       </p>
 
       <h4>6. Smooth before decimate, not after</h4>
       <p>
-        The execution order is: repair → smooth → decimate. This is intentional.
-        Smoothing a decimated mesh with large, irregular triangles produces poor
-        results because the Laplacian stencil (the set of neighbours each vertex
-        averages against) is uneven. Smoothing the dense, uniform mesh first and then
-        decimating gives cleaner geometry at every polygon budget.
+        The execution order is: repair → remesh → smooth → decimate. Smoothing a decimated
+        mesh with large, irregular triangles produces poor results because the Laplacian
+        stencil is uneven. Smooth (and remesh if needed) the dense mesh first, then decimate.
       </p>
 
       <h3>CLI</h3>
-      <pre><button class="copy-btn">copy</button><span class="cmt"># Smooth with 5 iterations</span>
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Smooth 5 iterations, preserve edges sharper than 45°</span>
 <span class="cmd">model-repair</span> blocky.stl smooth.stl <span class="flag">--smooth</span> <span class="val">5</span>
 
+<span class="cmt"># Smooth with tighter feature preservation (lower crease angle)</span>
+<span class="cmd">model-repair</span> character.stl out.stl <span class="flag">--smooth</span> <span class="val">3</span> <span class="flag">--smooth-crease-angle</span> <span class="val">25</span>
+
 <span class="cmt"># Smooth then decimate to 50 % of faces</span>
-<span class="cmt"># → saves out_repaired.stl (post-smooth, pre-decimate) and out.stl (decimated)</span>
 <span class="cmd">model-repair</span> blocky.stl out.stl <span class="flag">--smooth</span> <span class="val">3</span> <span class="flag">--decimate</span> <span class="val">0.5</span></pre>
-      <p>The iteration count must be in <code>[1, 50]</code>. Exit code <span class="exit-code exit-err">6</span> is returned if smoothing throws an exception.</p>
+      <p>Iteration count range: 1–50. Crease angle range: 0–180°. Exit code <span class="exit-code exit-err">6</span> is returned if smoothing fails.</p>
 
       <h3>GUI</h3>
       <p>
         Check <strong>Smooth after repair</strong> in the options panel. The
-        <strong>Iterations</strong> spinbox (1–50, default 3) becomes active.
+        <strong>Iterations</strong> spinbox (1–50, default 3) and
+        <strong>Crease angle</strong> spinbox (0–180°, default 45°) become active.
         Smooth and decimate can be combined — smooth runs first, then decimate.
         Both are automatically disabled in Diagnose mode.
       </p>
@@ -1058,8 +1064,9 @@ std::cout &lt;&lt; dr.faces_before &lt;&lt; <span class="str">" → "</span> &lt
       <table>
         <thead><tr><th>RepairOptions field</th><th>CLI flag</th><th class="td-type">Type</th><th>Default</th><th>Description</th></tr></thead>
         <tbody>
-          <tr><td><code>smooth</code></td><td><code>--smooth &lt;n&gt;</code> (n &gt; 0 enables)</td><td class="td-type">bool</td><td class="td-default">false</td><td>Enable post-repair mean curvature flow smoothing. Ignored when <code>diagnose_only</code> is true.</td></tr>
-          <tr><td><code>smooth_iterations</code></td><td>the <code>&lt;n&gt;</code> value of <code>--smooth</code></td><td class="td-type">unsigned int</td><td class="td-default">3</td><td>Number of mean curvature flow iterations (each followed by a triangle quality cleanup pass). Range 1–50.</td></tr>
+          <tr><td><code>smooth</code></td><td><code>--smooth &lt;n&gt;</code> (n &gt; 0 enables)</td><td class="td-type">bool</td><td class="td-default">false</td><td>Enable post-repair smoothing. Ignored when <code>diagnose_only</code> is true.</td></tr>
+          <tr><td><code>smooth_iterations</code></td><td>the <code>&lt;n&gt;</code> value of <code>--smooth</code></td><td class="td-type">unsigned int</td><td class="td-default">3</td><td>Number of Laplacian iterations. Range 1–50.</td></tr>
+          <tr><td><code>smooth_crease_angle</code></td><td><code>--smooth-crease-angle &lt;deg&gt;</code></td><td class="td-type">double</td><td class="td-default">45.0</td><td>Dihedral angle threshold in degrees. Edges with a larger angle are progressively excluded from the Laplacian average — 0° = no smoothing, 180° = uniform (no feature preservation). Range 0–180.</td></tr>
         </tbody>
       </table>
 
@@ -1069,9 +1076,119 @@ std::cout &lt;&lt; dr.faces_before &lt;&lt; <span class="str">" → "</span> &lt
 <span class="cmt">// Run repair first, then smooth</span>
 RepairPipeline({}).run(mesh);
 
-modelrepair::SmoothResult sr = modelrepair::smooth(mesh, <span class="val">5</span>);
+<span class="cmt">// 5 iterations, preserve edges sharper than 30°</span>
+modelrepair::SmoothResult sr = modelrepair::smooth(mesh, <span class="val">5</span>, <span class="val">30.0</span>);
 std::cout &lt;&lt; <span class="str">"Smoothed in "</span> &lt;&lt; sr.duration_ms &lt;&lt; <span class="str">" ms\n"</span>;</pre>
-      <p>The function may throw <code>std::exception</code> on malformed meshes. Wrap in try/catch in production code.</p>
+      <p>The crease angle defaults to 45° when omitted. The function may throw <code>std::exception</code> on malformed meshes.</p>
+    </section>
+
+    <!-- ── Remesh ─────────────────────────────────────────────────────── -->
+    <section id="remesh" class="anchor">
+      <h2>Isotropic Remeshing</h2>
+      <p>
+        Remeshing introduces new geometry by redistributing and subdividing the mesh
+        triangles. Unlike smoothing, which only moves existing vertices, remeshing
+        <strong>adds new vertices</strong> in areas with coarse triangulation — enabling
+        the follow-up Laplacian to represent smooth curvature where there were previously
+        no interior vertices to work with.
+      </p>
+      <div class="callout info">
+        <strong>Run before smooth, not instead of it.</strong>
+        The recommended workflow for low-poly organic meshes is:
+        repair → <strong>remesh</strong> → <strong>smooth</strong> → (optional) decimate.
+        Remeshing alone already improves triangle quality; pairing it with a few smooth
+        iterations produces visibly superior results.
+      </div>
+
+      <h3>How it works</h3>
+      <p>
+        Each remeshing iteration applies four operations in sequence (CGAL
+        <code>PMP::isotropic_remeshing</code>):
+      </p>
+      <ol>
+        <li><strong>Split</strong> edges longer than <code>4/3 × target_len</code></li>
+        <li><strong>Collapse</strong> edges shorter than <code>4/5 × target_len</code></li>
+        <li><strong>Flip</strong> edges to improve vertex valence (toward degree 6)</li>
+        <li><strong>Relocate</strong> vertices toward their Laplacian centroid (tangentially)</li>
+      </ol>
+      <p>
+        The target edge length is <code>mean_edge_length × edge_length_factor</code>.
+        A factor of 1.0 redistributes triangles to a uniform size without changing total
+        count. A factor below 1.0 adds triangles in coarse areas (increasing count); above
+        1.0 coarsens the mesh. The default of 0.8 adds roughly 30–60 % more triangles on
+        typical low-poly inputs.
+      </p>
+
+      <h4>Selective: coarse faces only</h4>
+      <p>
+        Only faces with at least one edge longer than <code>target_len</code> are passed to
+        the remesher. Fine-geometry regions (face, hands, fingers) that already have edges
+        shorter than the mean are automatically excluded and left untouched. CGAL protects
+        the boundary between selected and unselected regions, so the mesh remains
+        watertight at the transition.
+      </p>
+      <p>
+        This means you can use a moderate factor (0.7–0.9) on a character mesh and the
+        coarse body surfaces are subdivided while facial detail is fully preserved.
+      </p>
+
+      <h3 id="remesh-workflow" class="anchor">Workflow tips</h3>
+      <table>
+        <thead><tr><th>Goal</th><th>Recommended settings</th></tr></thead>
+        <tbody>
+          <tr><td>Scan noise / photogrammetry artefacts</td><td>Smooth only: 3–5 iters, crease 45°</td></tr>
+          <tr><td>Low-poly organic mesh (character, creature)</td><td>Remesh factor 0.8 + Smooth 3 iters, crease 45°</td></tr>
+          <tr><td>Voxel / CT export (90° staircase steps)</td><td>Smooth only: 5–10 iters, crease 80°</td></tr>
+          <tr><td>Preserve fine detail (face, fingers)</td><td>Crease angle 20–30°, 1–3 smooth iterations</td></tr>
+          <tr><td>Reduce polygon count after smoothing</td><td>Enable Decimate (0.5) after Smooth</td></tr>
+          <tr><td>Maximum quality, print-ready</td><td>Remesh 0.8 → Smooth 5 iters, crease 45° → Decimate 0.7</td></tr>
+        </tbody>
+      </table>
+      <div class="callout warn">
+        <strong>Performance.</strong> Remeshing + smoothing on a mesh with 80k faces
+        typically takes 20–60 seconds. The status bar freezes at the last repair step
+        while post-repair operations run on the background thread — this is normal.
+        Do not close the window; wait for the Before/After preview to appear.
+      </div>
+
+      <h3>CLI</h3>
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Remesh to 80 % of mean edge length, then smooth</span>
+<span class="cmd">model-repair</span> character.stl out.stl <span class="flag">--remesh</span> <span class="val">0.8</span> <span class="flag">--smooth</span> <span class="val">3</span>
+
+<span class="cmt"># Remesh with more iterations for a more uniform result</span>
+<span class="cmd">model-repair</span> character.stl out.stl <span class="flag">--remesh</span> <span class="val">0.8</span> <span class="flag">--remesh-iterations</span> <span class="val">5</span> <span class="flag">--smooth</span> <span class="val">3</span></pre>
+      <p>Edge length factor range: 0.1–2.0. Iteration count range: 1–10. Exit code <span class="exit-code exit-err">7</span> is returned if remeshing fails.</p>
+
+      <h3>GUI</h3>
+      <p>
+        Check <strong>Remesh (isotropic) before smoothing</strong> in the options panel.
+        The <strong>Edge length factor</strong> spinbox (0.1–2.0, default 0.8) and
+        <strong>Iterations</strong> spinbox (1–10, default 3) become active.
+        Remesh runs before Smooth and Decimate in the post-repair sequence.
+        It is automatically disabled in Diagnose mode.
+      </p>
+
+      <h3>Options</h3>
+      <table>
+        <thead><tr><th>RepairOptions field</th><th>CLI flag</th><th class="td-type">Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>remesh</code></td><td><code>--remesh &lt;factor&gt;</code> (factor &gt; 0 enables)</td><td class="td-type">bool</td><td class="td-default">false</td><td>Enable isotropic remeshing before smooth. Ignored when <code>diagnose_only</code> is true.</td></tr>
+          <tr><td><code>remesh_edge_length_factor</code></td><td>the <code>&lt;factor&gt;</code> value of <code>--remesh</code></td><td class="td-type">double</td><td class="td-default">0.8</td><td>Target edge length as a fraction of mean edge length. &lt;1 adds triangles; &gt;1 coarsens. Range 0.1–2.0.</td></tr>
+          <tr><td><code>remesh_iterations</code></td><td><code>--remesh-iterations &lt;n&gt;</code></td><td class="td-type">unsigned int</td><td class="td-default">3</td><td>Number of split/collapse/flip/relocate passes. More iterations produce a more uniform result. Range 1–10.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>API</h3>
+      <pre><span class="kw">#include</span> <span class="str">"modelrepair/Remesh.hpp"</span>
+
+<span class="cmt">// Run repair first, then remesh, then smooth</span>
+RepairPipeline({}).run(mesh);
+
+modelrepair::RemeshResult rr = modelrepair::remesh(mesh, <span class="val">0.8</span>, <span class="val">3</span>);
+std::cout &lt;&lt; rr.faces_before &lt;&lt; <span class="str">" → "</span> &lt;&lt; rr.faces_after &lt;&lt; <span class="str">" faces\n"</span>;
+
+modelrepair::smooth(mesh, <span class="val">3</span>, <span class="val">45.0</span>);</pre>
+      <p>The function may throw <code>std::exception</code> on malformed meshes.</p>
     </section>
 
     <!-- ── CLI ───────────────────────────────────────────────────────── -->
