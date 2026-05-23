@@ -25,12 +25,18 @@ struct RepairOptions
     std::size_t max_hole_edges         = 0;    // 0 = no limit
     bool   fill_holes_smooth           = true; // false = flat fan triangulation
 
-    // Step 6 — self-intersections (slow; uses EPECK kernel internally)
-    bool   remove_self_intersections   = true;
+    // Step 6 — self-intersections (very slow on large meshes; uses EPECK kernel internally)
+    bool   remove_self_intersections   = false;
+
+    // Post-repair remeshing (run before smooth; introduces new geometry)
+    bool         remesh                    = false;
+    double       remesh_edge_length_factor = 0.8;
+    unsigned int remesh_iterations         = 3;
 
     // Post-repair smoothing
     bool         smooth            = false;
     unsigned int smooth_iterations = 3;    // angle-smoothing passes
+    double       smooth_crease_angle = 45.0; // degrees; edges sharper than this are preserved
 
     // Post-repair decimation
     bool   decimate       = false;

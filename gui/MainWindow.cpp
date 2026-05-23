@@ -91,7 +91,40 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
         grp_layout->addLayout(row);
     }
     chk_smooth_fill_    = make_check("  Smooth fill (uncheck = flat fan)");
-    chk_self_intersect_ = make_check("Remove self-intersections (slow)");
+    chk_self_intersect_ = make_check("Remove self-intersections (very slow — avoid on large meshes)", false);
+
+    // Remeshing
+    chk_remesh_ = make_check("Remesh (isotropic) before smoothing", false);
+    {
+        auto* row = new QHBoxLayout;
+        auto* lbl = new QLabel("  Edge length factor:");
+        spin_remesh_factor_ = new QDoubleSpinBox;
+        spin_remesh_factor_->setRange(0.1, 2.0);
+        spin_remesh_factor_->setSingleStep(0.1);
+        spin_remesh_factor_->setDecimals(2);
+        spin_remesh_factor_->setValue(0.8);
+        spin_remesh_factor_->setEnabled(false);
+        row->addWidget(lbl);
+        row->addWidget(spin_remesh_factor_);
+        row->addStretch();
+        grp_layout->addLayout(row);
+        connect(chk_remesh_, &QCheckBox::toggled,
+                spin_remesh_factor_, &QDoubleSpinBox::setEnabled);
+    }
+    {
+        auto* row = new QHBoxLayout;
+        auto* lbl = new QLabel("  Iterations:");
+        spn_remesh_iters_ = new QSpinBox;
+        spn_remesh_iters_->setRange(1, 10);
+        spn_remesh_iters_->setValue(3);
+        spn_remesh_iters_->setEnabled(false);
+        row->addWidget(lbl);
+        row->addWidget(spn_remesh_iters_);
+        row->addStretch();
+        grp_layout->addLayout(row);
+        connect(chk_remesh_, &QCheckBox::toggled,
+                spn_remesh_iters_, &QSpinBox::setEnabled);
+    }
 
     // Smoothing
     chk_smooth_ = make_check("Smooth after repair", false);
@@ -108,6 +141,22 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
         grp_layout->addLayout(row);
         connect(chk_smooth_, &QCheckBox::toggled,
                 spn_smooth_iters_, &QSpinBox::setEnabled);
+    }
+    {
+        auto* row = new QHBoxLayout;
+        auto* lbl = new QLabel("  Crease angle (°):");
+        spn_smooth_crease_ = new QDoubleSpinBox;
+        spn_smooth_crease_->setRange(0.0, 180.0);
+        spn_smooth_crease_->setSingleStep(5.0);
+        spn_smooth_crease_->setDecimals(1);
+        spn_smooth_crease_->setValue(45.0);
+        spn_smooth_crease_->setEnabled(false);
+        row->addWidget(lbl);
+        row->addWidget(spn_smooth_crease_);
+        row->addStretch();
+        grp_layout->addLayout(row);
+        connect(chk_smooth_, &QCheckBox::toggled,
+                spn_smooth_crease_, &QDoubleSpinBox::setEnabled);
     }
 
     // Decimation
@@ -222,8 +271,12 @@ modelrepair::RepairOptions MainWindow::collect_options() const
     o.max_hole_edges              = static_cast<std::size_t>(spin_max_hole_edges_->value());
     o.fill_holes_smooth           = chk_smooth_fill_->isChecked();
     o.remove_self_intersections   = chk_self_intersect_->isChecked();
-    o.smooth            = chk_smooth_->isChecked();
-    o.smooth_iterations = static_cast<unsigned int>(spn_smooth_iters_->value());
+    o.remesh                    = chk_remesh_->isChecked();
+    o.remesh_edge_length_factor = spin_remesh_factor_->value();
+    o.remesh_iterations         = static_cast<unsigned int>(spn_remesh_iters_->value());
+    o.smooth             = chk_smooth_->isChecked();
+    o.smooth_iterations  = static_cast<unsigned int>(spn_smooth_iters_->value());
+    o.smooth_crease_angle = spn_smooth_crease_->value();
     o.decimate                    = chk_decimate_->isChecked();
     o.decimate_ratio              = spin_decimate_ratio_->value();
     return o;

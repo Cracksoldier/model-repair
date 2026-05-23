@@ -1,4 +1,5 @@
 #include "modelrepair/Decimate.hpp"
+#include "modelrepair/Remesh.hpp"
 #include "modelrepair/Smooth.hpp"
 #include "modelrepair/RepairPipeline.hpp"
 #include "modelrepair/RepairReport.hpp"
@@ -59,11 +60,23 @@ int main(int argc, char* argv[])
     bool   diagnose       = false;
     double decimate_ratio = 0.0;
     unsigned int smooth_iters = 0;
+    double       remesh_factor = 0.0;
+    unsigned int remesh_iters  = 3;
     app.add_flag  ("--diagnose",  diagnose,
                    "Report issues without modifying the mesh. OUTPUT is optional.");
+    app.add_option("--remesh", remesh_factor,
+                   "Remesh before smoothing: edge length factor relative to mean edge length (0.1–2.0; 0.8 = finer, 1.0 = redistribute, 2.0 = coarser).")
+       ->check(CLI::Range(0.1, 2.0));
+    app.add_option("--remesh-iterations", remesh_iters,
+                   "Number of isotropic remesh iterations (default 3).")
+       ->check(CLI::Range(1u, 10u));
     app.add_option("--smooth",    smooth_iters,
                    "Smooth after repair: number of angle-smoothing iterations (e.g. 3).")
        ->check(CLI::Range(1u, 50u));
+    double smooth_crease = 45.0;
+    app.add_option("--smooth-crease-angle", smooth_crease,
+                   "Dihedral angle threshold (degrees) for feature preservation during smoothing (0–180, default 45).")
+       ->check(CLI::Range(0.0, 180.0));
     app.add_option("--decimate",  decimate_ratio,
                    "Decimate after repair: retain this fraction of faces (0.01–1.0).")
        ->check(CLI::Range(0.01, 1.0));
@@ -76,9 +89,15 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    opts.fill_holes_smooth = !flat_fill;
-    opts.verbose           = verbose;
-    opts.diagnose_only     = diagnose;
+    opts.fill_holes_smooth   = !flat_fill;
+    opts.verbose             = verbose;
+    opts.diagnose_only       = diagnose;
+    opts.smooth_crease_angle = smooth_crease;
+    if (remesh_factor > 0.0) {
+        opts.remesh                    = true;
+        opts.remesh_edge_length_factor = remesh_factor;
+        opts.remesh_iterations         = remesh_iters;
+    }
 
     // Configure logging
     auto logger = spdlog::stdout_color_mt("model-repair");
@@ -127,13 +146,34 @@ int main(int argc, char* argv[])
         return 3;
     }
 
-    // Smooth (after repair, before decimate)
+    // Remesh (after repair, before smooth)
+    if (opts.remesh && !diagnose)
+    {
+        modelrepair::RemeshResult rr;
+        try
+        {
+            rr = modelrepair::remesh(mesh, opts.remesh_edge_length_factor, opts.remesh_iterations);
+        }
+        catch (const std::exception& e)
+        {
+            logger->error("Remeshing failed: {}", e.what());
+            return 7;
+        }
+        modelrepair::StepReport sr;
+        sr.name        = "Remesh";
+        sr.was_run     = true;
+        sr.issues_fixed = static_cast<int>(rr.faces_after) - static_cast<int>(rr.faces_before);
+        sr.duration_ms = rr.duration_ms;
+        report.steps.push_back(sr);
+    }
+
+    // Smooth (after remesh, before decimate)
     if (smooth_iters > 0 && !diagnose)
     {
         modelrepair::SmoothResult smr;
         try
         {
-            smr = modelrepair::smooth(mesh, smooth_iters);
+            smr = modelrepair::smooth(mesh, smooth_iters, opts.smooth_crease_angle);
         }
         catch (const std::exception& e)
         {

@@ -1,6 +1,7 @@
 #include "RepairWorker.hpp"
 
 #include "modelrepair/Decimate.hpp"
+#include "modelrepair/Remesh.hpp"
 #include "modelrepair/Smooth.hpp"
 #include "modelrepair/RepairPipeline.hpp"
 #include "modelrepair/io/MeshIO.hpp"
@@ -54,13 +55,38 @@ void RepairWorker::run()
         return;
     }
 
+    // Post-repair remeshing (before smooth)
+    if (opts_.remesh && !report.diagnose_only)
+    {
+        modelrepair::RemeshResult rr;
+        try
+        {
+            rr = modelrepair::remesh(mesh, opts_.remesh_edge_length_factor, opts_.remesh_iterations);
+        }
+        catch (const std::exception& e)
+        {
+            emit finished({}, {}, {}, QString("Remeshing failed: ") + e.what());
+            return;
+        }
+        modelrepair::StepReport sr;
+        sr.name         = "Remesh";
+        sr.was_run      = true;
+        sr.issues_found = 0;
+        sr.issues_fixed = static_cast<int>(rr.faces_after) - static_cast<int>(rr.faces_before);
+        sr.duration_ms  = rr.duration_ms;
+        report.steps.push_back(sr);
+        report.triangles_after    = mesh.num_faces();
+        report.surface_area_after = mesh.surface_area();
+        report.volume_after       = mesh.volume();
+    }
+
     // Post-repair smoothing
     if (opts_.smooth && !report.diagnose_only)
     {
         modelrepair::SmoothResult smr;
         try
         {
-            smr = modelrepair::smooth(mesh, opts_.smooth_iterations);
+            smr = modelrepair::smooth(mesh, opts_.smooth_iterations, opts_.smooth_crease_angle);
         }
         catch (const std::exception& e)
         {

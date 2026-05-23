@@ -9,6 +9,7 @@ add_library(modelrepair SHARED
     repairs/FillHoles.cpp
     repairs/RemoveSelfIntersections.cpp
     repairs/Decimate.cpp
+    repairs/Remesh.cpp
     repairs/Smooth.cpp
     io/StlIO.cpp
     io/ObjIO.cpp
