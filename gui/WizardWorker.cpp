@@ -64,14 +64,14 @@ void WizardWorker::run()
                     mesh_, remesh_factor_, remesh_iters_, crease_angle_,
                     [this, &done, total, n = remesh_iters_](unsigned int completed) {
                         ++done;
-                        if (completed < n)
-                            emit progressChanged(done + 1, total,
-                                QString("Remeshing %1/%2").arg(completed + 1).arg(n));
+                        emit progressChanged(done + 1, total,
+                            QString("Remeshing %1/%2").arg(completed).arg(n));
                     });
                 modelrepair::StepReport sr;
                 sr.name        = "Remesh";
                 sr.was_run     = true;
-                sr.issues_fixed = static_cast<int>(rr.faces_after) - static_cast<int>(rr.faces_before);
+                sr.issues_fixed = rr.faces_after >= rr.faces_before
+                    ? rr.faces_after - rr.faces_before : 0;
                 sr.duration_ms = rr.duration_ms;
                 report.steps.push_back(sr);
             } catch (const std::exception& e) {
@@ -88,9 +88,8 @@ void WizardWorker::run()
                     mesh_, smooth_iters_, crease_angle_,
                     [this, &done, total, n = smooth_iters_](unsigned int completed) {
                         ++done;
-                        if (completed < n)
-                            emit progressChanged(done + 1, total,
-                                QString("Smoothing %1/%2").arg(completed + 1).arg(n));
+                        emit progressChanged(done + 1, total,
+                            QString("Smoothing %1/%2").arg(completed).arg(n));
                     });
                 modelrepair::StepReport sr;
                 sr.name       = "Smooth";

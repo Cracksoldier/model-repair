@@ -25,6 +25,7 @@ namespace gui
 {
 
 class ReportView;
+class WizardWindow;
 
 class MainWindow : public QMainWindow
 {
@@ -107,6 +108,7 @@ private:
     QTimer*       elapsed_timer_  = nullptr;
     QElapsedTimer elapsed_clock_;
     QElapsedTimer task_clock_;
+    WizardWindow* wizard_         = nullptr;
 };
 
 } // namespace gui

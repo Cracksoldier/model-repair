@@ -21,6 +21,8 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include <QCloseEvent>
+
 #include <memory>
 #include <optional>
 
@@ -46,20 +48,21 @@ static QLabel* warn_label(const QString& text, QWidget* parent = nullptr)
 }
 
 // Builds the standard before/after 3D view and inserts it into container.
-// container must have a QVBoxLayout. Existing layout children are cleared.
+// Existing child widgets and layout are replaced on each call.
 static void populate_preview_area(QWidget* container,
                                    const modelrepair::Mesh& before,
                                    const modelrepair::Mesh& after)
 {
-    // Clear any existing layout
-    if (auto* old = container->layout()) {
-        QLayoutItem* item;
-        while ((item = old->takeAt(0)) != nullptr) {
-            delete item->widget();
-            delete item;
-        }
-        delete old;
-    }
+    // Delete the old layout first (which owns sub-layouts like left/right QVBoxLayout).
+    // Do this before deleting child widgets so QLayout doesn't access freed widget pointers.
+    delete container->layout();
+
+    // Delete any child widgets left alive (MeshViewWidget, QLabel).
+    // These are direct children of container so findChildren is safe.
+    const auto old_children =
+        container->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);
+    for (auto* c : old_children)
+        delete c;
 
     auto camera = std::make_shared<CameraState>();
     auto* view_before = new MeshViewWidget(before, camera, container);
@@ -249,7 +252,7 @@ private:
         vbox->addWidget(stats_label_);
 
         auto* btn_row = new QHBoxLayout;
-        auto* btn_finish   = new QPushButton("Finish");
+        auto* btn_finish   = new QPushButton("Save As…");
         auto* btn_continue = new QPushButton("Continue to Phase 2 →");
         btn_continue->setDefault(true);
         connect(btn_finish,   &QPushButton::clicked, this, &Phase1Page::finish_clicked);
@@ -522,7 +525,7 @@ private:
         vbox->addWidget(stats_label_);
 
         auto* btn_row = new QHBoxLayout;
-        auto* btn_finish   = new QPushButton("Finish");
+        auto* btn_finish   = new QPushButton("Save As…");
         auto* btn_continue = new QPushButton("Continue to Phase 3 →");
         btn_continue->setDefault(true);
         connect(btn_finish,   &QPushButton::clicked, this, &Phase2Page::finish_clicked);
@@ -823,10 +826,15 @@ WizardWindow::WizardWindow(std::filesystem::path input_path, QWidget* parent)
     connect(page3_, &Phase3Page::save_clicked, this, &WizardWindow::on_phase3_save);
 }
 
-WizardWindow::~WizardWindow()
+WizardWindow::~WizardWindow() = default;
+
+void WizardWindow::closeEvent(QCloseEvent* event)
 {
-    // worker_thread_ + worker clean themselves up via the deleteLater chain
-    // Qt auto-disconnects signals from worker to this on our destruction
+    if (worker_thread_ && worker_thread_->isRunning()) {
+        event->ignore();
+        return;
+    }
+    QDialog::closeEvent(event);
 }
 
 void WizardWindow::start_worker_thread(WizardWorker* worker)
@@ -888,7 +896,7 @@ void WizardWindow::on_phase1_run()
 }
 
 void WizardWindow::on_phase1_continue() { enter_phase2(); }
-void WizardWindow::on_phase1_finish()   { accept(); }
+void WizardWindow::on_phase1_finish()   { try_save_and_accept(); }
 
 // ─── Phase 2 handlers ─────────────────────────────────────────────────────────
 
@@ -910,7 +918,7 @@ void WizardWindow::on_phase2_run()
 
 void WizardWindow::on_phase2_skip()     { enter_phase3(); }
 void WizardWindow::on_phase2_continue() { enter_phase3(); }
-void WizardWindow::on_phase2_finish()   { accept(); }
+void WizardWindow::on_phase2_finish()   { try_save_and_accept(); }
 
 // ─── Phase 3 handlers ─────────────────────────────────────────────────────────
 
@@ -924,14 +932,15 @@ void WizardWindow::on_phase3_run(double ratio)
 
 void WizardWindow::on_phase3_skip() { accept(); }
 
-void WizardWindow::on_phase3_save()
+void WizardWindow::on_phase3_save() { try_save_and_accept(); }
+
+void WizardWindow::try_save_and_accept()
 {
-    QString suggestion;
-    auto stem = input_path_.stem().string() + "_repaired";
-    suggestion = QString::fromStdString(
+    const auto stem = input_path_.stem().string() + "_repaired";
+    const QString suggestion = QString::fromStdString(
         (input_path_.parent_path() / (stem + input_path_.extension().string())).string());
 
-    QString path = QFileDialog::getSaveFileName(
+    const QString path = QFileDialog::getSaveFileName(
         this, "Save repaired mesh", suggestion,
         "STL binary (*.stl);;OBJ (*.obj);;3MF (*.3mf);;All files (*)");
     if (path.isEmpty()) return;

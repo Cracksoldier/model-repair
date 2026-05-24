@@ -213,9 +213,15 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     });
     connect(btn_wizard_, &QPushButton::clicked, this, [this]
     {
-        auto* wiz = new WizardWindow(*input_path_, this);
-        wiz->setAttribute(Qt::WA_DeleteOnClose);
-        wiz->show();
+        if (wizard_) {
+            wizard_->raise();
+            wizard_->activateWindow();
+            return;
+        }
+        wizard_ = new WizardWindow(*input_path_, this);
+        wizard_->setAttribute(Qt::WA_DeleteOnClose);
+        connect(wizard_, &QObject::destroyed, this, [this] { wizard_ = nullptr; });
+        wizard_->show();
     });
 
     // --- Progress ---

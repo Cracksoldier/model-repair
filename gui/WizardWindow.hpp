@@ -6,6 +6,7 @@
 #include <QDialog>
 #include <filesystem>
 
+class QCloseEvent;
 class QLabel;
 class QPushButton;
 class QStackedWidget;
@@ -25,6 +26,9 @@ public:
     explicit WizardWindow(std::filesystem::path input_path, QWidget* parent = nullptr);
     ~WizardWindow() override;
 
+protected:
+    void closeEvent(QCloseEvent* event) override;
+
 private slots:
     void on_progress(int step, int total, const QString& name);
     void on_worker_finished(modelrepair::Mesh result, modelrepair::RepairReport report,
@@ -43,6 +47,7 @@ private slots:
 
 private:
     void start_worker_thread(class WizardWorker* worker);
+    void try_save_and_accept();
     void enter_phase2();
     void enter_phase3();
 
