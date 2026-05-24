@@ -93,6 +93,7 @@ private:
     QPushButton* btn_save_;
     QPushButton* btn_open_;
     QPushButton* btn_batch_;
+    QPushButton* btn_wizard_;
 
     // Results
     ReportView* report_view_;

@@ -9,6 +9,8 @@ add_executable(model-repair-gui
     ReportView.cpp
     MeshViewWidget.cpp
     PreviewWindow.cpp
+    WizardWorker.cpp
+    WizardWindow.cpp
     resources.qrc
 )
 

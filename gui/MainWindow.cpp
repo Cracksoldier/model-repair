@@ -3,6 +3,7 @@
 #include "PreviewWindow.hpp"
 #include "RepairWorker.hpp"
 #include "ReportView.hpp"
+#include "WizardWindow.hpp"
 
 #include <QCheckBox>
 #include <QDoubleSpinBox>
@@ -191,11 +192,14 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     btn_diagnose_->setEnabled(false);
     btn_save_     = new QPushButton("Save As…");
     btn_save_->setEnabled(false);
+    btn_wizard_   = new QPushButton("Wizard…");
+    btn_wizard_->setEnabled(false);
     btn_row->addWidget(btn_repair_);
     btn_row->addWidget(btn_diagnose_);
     btn_row->addWidget(btn_save_);
     btn_batch_ = new QPushButton("Batch Repair…");
     btn_row->addWidget(btn_batch_);
+    btn_row->addWidget(btn_wizard_);
     root->addLayout(btn_row);
 
     connect(btn_repair_,   &QPushButton::clicked, this, &MainWindow::on_repair_clicked);
@@ -206,6 +210,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
         auto* batch = new BatchWindow(collect_options(), this);
         batch->setAttribute(Qt::WA_DeleteOnClose);
         batch->show();
+    });
+    connect(btn_wizard_, &QPushButton::clicked, this, [this]
+    {
+        auto* wiz = new WizardWindow(*input_path_, this);
+        wiz->setAttribute(Qt::WA_DeleteOnClose);
+        wiz->show();
     });
 
     // --- Progress ---
@@ -259,6 +269,7 @@ void MainWindow::set_input(const std::filesystem::path& path)
     repaired_mesh_.reset();
     btn_repair_->setEnabled(true);
     btn_diagnose_->setEnabled(true);
+    btn_wizard_->setEnabled(true);
     btn_save_->setEnabled(false);
     report_view_->clear();
     drop_label_->setText(QString::fromStdString(path.filename().string()));
@@ -414,6 +425,7 @@ void MainWindow::set_busy(bool busy)
 
     btn_open_->setEnabled(!busy);
     btn_batch_->setEnabled(!busy);
+    btn_wizard_->setEnabled(!busy && input_path_.has_value());
     drop_label_->setEnabled(!busy);
     opts_group_->setEnabled(!busy);
 
