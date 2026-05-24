@@ -143,6 +143,7 @@ cmake --build build/minimal -j$(nproc)
 4. A **Before / After 3D preview window** opens automatically when repair completes — rotate with left-drag, pan with right-drag, zoom with scroll wheel; both views are camera-synced
 5. Review the per-step report in the main window
 6. Click **Save As…** to export the repaired mesh
+7. Or click **Wizard…** for a guided three-phase workflow: Phase 1 repairs the mesh, Phase 2 optionally remeshes/smooths it, Phase 3 optionally decimates it — each phase shows a before/after 3D preview before you commit
 
 ### CLI
 
@@ -301,6 +302,8 @@ libmodelrepair.so              (shared library — LGPL-safe via dynamic linking
 model-repair                   CLI frontend (links libmodelrepair)
 model-repair-gui               Qt 6 frontend (links libmodelrepair)
 ├── MainWindow                 Main UI — options, progress, report
+├── WizardWindow               Guided three-phase repair workflow (QDialog)
+├── WizardWorker               Per-phase background worker (QObject/QThread)
 ├── PreviewWindow              Side-by-side Before/After 3D window
 └── MeshViewWidget             QOpenGLWidget — Phong shading, arcball camera
 ```
@@ -333,6 +336,8 @@ model-repair/
 │   ├── RepairWorker.cpp/.hpp  QThread wrapper for background repair
 │   ├── ReportView.cpp/.hpp    QTreeWidget repair report display
 │   ├── PreviewWindow.cpp/.hpp Side-by-side Before/After 3D window
+│   ├── WizardWindow.cpp/.hpp  Guided three-phase repair wizard (QDialog)
+│   ├── WizardWorker.cpp/.hpp  Per-phase background worker for the wizard
 │   └── MeshViewWidget.cpp/.hpp QOpenGLWidget with shared arcball camera
 └── tests/
     ├── generate_test_meshes.py

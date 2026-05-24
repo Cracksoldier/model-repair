@@ -288,6 +288,7 @@
       <div class="sidebar-section-label">GUI</div>
       <a href="#gui">GUI Guide</a>
       <a href="#gui-main" class="sub">Main Window</a>
+      <a href="#gui-wizard" class="sub">Repair Wizard</a>
       <a href="#gui-preview" class="sub">3D Preview</a>
       <a href="#gui-batch" class="sub">Batch Processing</a>
     </div>
@@ -1417,6 +1418,85 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
         by the file extension you choose (.stl writes binary STL, .obj writes OBJ, .3mf writes 3MF,
         .glb writes binary glTF, .gltf writes text glTF).
         The saved mesh is the decimated version if decimation was enabled.
+      </p>
+
+      <h3 id="gui-wizard" class="anchor">Repair Wizard</h3>
+      <p>
+        The <strong>Wizard…</strong> button opens a guided three-phase workflow. It is enabled
+        whenever a file is loaded and is disabled while a background repair is running in the
+        main window. Only one wizard instance can be open at a time — clicking the button again
+        raises the existing window rather than opening a second one.
+      </p>
+      <p>
+        Each phase runs on a background thread (<code>WizardWorker</code> on a
+        <code>QThread</code>) so the UI stays responsive. The wizard window cannot be closed
+        while a phase is running; close it after the current phase completes or when the
+        progress bar finishes.
+      </p>
+      <p>
+        After each phase completes, the page switches to a before/after 3D preview with the
+        same camera controls as the <a href="#gui-preview">3D Preview Window</a>. Both
+        viewports share a single camera state so they always show the same angle. Clicking
+        <strong>Save As…</strong> at any phase exit point opens a save dialog — the wizard
+        closes only after a successful save (cancelling the dialog or a save error leaves it
+        open so you can try again or continue to the next phase).
+      </p>
+
+      <h4>Phase 1 — Repair</h4>
+      <p>Mandatory. Runs the six-step repair pipeline on the loaded mesh.</p>
+      <table>
+        <thead><tr><th>Option</th><th>Default</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Merge duplicate vertices</td><td>On</td><td>Required — STL files always arrive as triangle soup with no vertex sharing</td></tr>
+          <tr><td>Remove degenerate triangles</td><td>On</td><td></td></tr>
+          <tr><td>Fix non-manifold geometry</td><td>On</td><td></td></tr>
+          <tr><td>Fix face normals</td><td>On</td><td></td></tr>
+          <tr><td>Fill holes</td><td>On</td><td>Max hole edges spinbox (0 = no limit)</td></tr>
+          <tr><td>Remove self-intersections</td><td>On</td><td>⚠ Slow — can take minutes on complex meshes</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Progress advances one slot per pipeline step (6 total). After the repair completes,
+        a before/after preview is shown. Navigation: <strong>Save As…</strong> to save and
+        close, or <strong>Continue to Phase 2 →</strong>.
+      </p>
+
+      <h4>Phase 2 — Remesh &amp; Smooth (optional)</h4>
+      <p>
+        Optionally applies isotropic remeshing and/or feature-preserving smoothing to the
+        repaired mesh. Both are off by default.
+      </p>
+      <table>
+        <thead><tr><th>Option</th><th>Default</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Remesh (isotropic)</td><td>Off</td><td>Edge length factor 0.1–2.0 (default 0.8; &lt;1 = finer, &gt;1 = coarser), iterations 1–10 (default 3)</td></tr>
+          <tr><td>Smooth</td><td>Off</td><td>Iterations 1–50 (default 3), crease angle 0–180° (default 45° — edges sharper than this are preserved as hard features)</td></tr>
+        </tbody>
+      </table>
+      <p>
+        A warning label appears when remesh is enabled and the mesh has more than 200 000
+        faces, and when smooth iterations exceed 10. Click <strong>Skip this phase</strong>
+        to proceed directly to Phase 3. Progress tracks one slot per remesh iteration followed
+        by one slot per smooth iteration.
+      </p>
+
+      <h4>Phase 3 — Decimate (optional)</h4>
+      <p>
+        Optionally reduces the polygon count. When the phase is entered, the current mesh
+        is analysed automatically and the result is shown:
+      </p>
+      <ul>
+        <li>Triangle count</li>
+        <li>Watertight status (closed / open)</li>
+        <li>Time estimate based on face count (under 50 k → seconds; 50 k–200 k → 5–30 s; 200 k–500 k → 30 s–2 min; over 500 k → several minutes)</li>
+        <li>A note if the mesh is not watertight (decimation results may be less predictable)</li>
+      </ul>
+      <p>
+        Set the <strong>Retain fraction</strong> (0.01–1.00, default 0.50 — keep half the
+        triangles) then click <strong>Run Decimate</strong>, or click
+        <strong>Skip this phase</strong> to go straight to the save step.
+        Navigation after decimation: <strong>Close</strong> (discard) or
+        <strong>Save As…</strong>.
       </p>
 
       <h3 id="gui-preview" class="anchor">3D Preview Window</h3>
