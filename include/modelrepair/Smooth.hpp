@@ -2,6 +2,8 @@
 
 #include "Mesh.hpp"
 
+#include <functional>
+
 namespace modelrepair
 {
 
@@ -10,6 +12,7 @@ struct SmoothResult
     double duration_ms = 0.0;
 };
 
-SmoothResult smooth(Mesh& mesh, unsigned int iterations, double crease_angle = 45.0);
+SmoothResult smooth(Mesh& mesh, unsigned int iterations, double crease_angle = 45.0,
+                    std::function<void(unsigned int)> on_iteration = nullptr);
 
 } // namespace modelrepair

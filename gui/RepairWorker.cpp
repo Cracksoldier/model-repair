@@ -35,7 +35,7 @@ void RepairWorker::run()
     // Compute grand total so post-repair steps appear in the same bar.
     const bool do_post = !opts_.diagnose_only;
     const int post_steps = (opts_.remesh   && do_post ? static_cast<int>(opts_.remesh_iterations) : 0)
-                         + (opts_.smooth   && do_post ? 1 : 0)
+                         + (opts_.smooth   && do_post ? static_cast<int>(opts_.smooth_iterations) : 0)
                          + (opts_.decimate && do_post ? 1 : 0);
     constexpr int pipeline_total = 6;
     const int grand_total = pipeline_total + post_steps;
@@ -109,17 +109,27 @@ void RepairWorker::run()
     // Post-repair smoothing
     if (opts_.smooth && !report.diagnose_only)
     {
-        emit progressChanged(++post_step, grand_total, "Smoothing");
+        const unsigned int total_iters = opts_.smooth_iterations;
+        emit progressChanged(post_step + 1, grand_total,
+            QString("Smoothing 1/%1").arg(total_iters));
         modelrepair::SmoothResult smr;
         try
         {
-            smr = modelrepair::smooth(mesh, opts_.smooth_iterations, opts_.smooth_crease_angle);
+            smr = modelrepair::smooth(
+                mesh, total_iters, opts_.smooth_crease_angle,
+                [this, post_step, grand_total, total_iters](unsigned int completed) {
+                    if (completed < total_iters) {
+                        emit progressChanged(post_step + completed + 1, grand_total,
+                            QString("Smoothing %1/%2").arg(completed + 1).arg(total_iters));
+                    }
+                });
         }
         catch (const std::exception& e)
         {
             emit finished({}, {}, {}, QString("Smoothing failed: ") + e.what());
             return;
         }
+        post_step += static_cast<int>(total_iters);
         modelrepair::StepReport sr;
         sr.name         = "Smooth";
         sr.was_run      = true;

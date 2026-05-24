@@ -11,7 +11,8 @@ namespace PMP = CGAL::Polygon_mesh_processing;
 namespace modelrepair
 {
 
-SmoothResult smooth(Mesh& mesh, unsigned int iterations, double crease_angle)
+SmoothResult smooth(Mesh& mesh, unsigned int iterations, double crease_angle,
+                    std::function<void(unsigned int)> on_iteration)
 {
     auto t0 = std::chrono::steady_clock::now();
 
@@ -108,8 +109,10 @@ SmoothResult smooth(Mesh& mesh, unsigned int iterations, double crease_angle)
     // Capture volume before smoothing so we can restore it afterwards.
     auto vol_before = mesh.volume(); // nullopt if mesh is not closed
 
-    for (unsigned int i = 0; i < iterations; ++i)
+    for (unsigned int i = 0; i < iterations; ++i) {
         laplacian_step();
+        if (on_iteration) on_iteration(i + 1);
+    }
 
     M.remove_property_map(fnormals);
 
