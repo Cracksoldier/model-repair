@@ -1388,11 +1388,14 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
         Click <strong>Repair</strong>. The repair runs on a background thread
         (<code>RepairWorker</code> on a <code>QThread</code>) so the UI stays responsive.
         While running, all input controls (options panel, Open file, Batch Repair, drop zone)
-        are disabled to prevent conflicting changes. A progress bar shows the current step
-        across all enabled operations — pipeline steps plus any enabled remesh, smooth, or
-        decimate steps — and an elapsed time counter (M:SS) on the right updates every second
-        to confirm the tool is still working. The report tree fills in per-step results as
-        each step completes. Execution order: repair → remesh → smooth → decimate.
+        are disabled to prevent conflicting changes. A progress bar advances one slot per
+        operation across all enabled steps — 6 pipeline steps, then one slot per remesh
+        iteration ("Remeshing 1/3 → 2/3 → 3/3"), one slot per smooth iteration
+        ("Smoothing 1/3 → 2/3 → 3/3"), and one slot for decimate — so the bar moves
+        continuously rather than freezing on a single step. An elapsed time counter (M:SS)
+        on the right updates every second to confirm the tool is still working. The report
+        tree fills in per-step results as each step completes.
+        Execution order: repair → remesh → smooth → decimate.
       </p>
       <p>
         On success, the <a href="#gui-preview">3D Preview Window</a> opens automatically
@@ -1584,7 +1587,9 @@ modelrepair::io::save(mesh, <span class="str">"out.glb"</span>);           <span
       <pre><span class="kw">#include</span> <span class="str">"modelrepair/Smooth.hpp"</span>
 
 <span class="cmt">// SmoothResult fields: duration_ms</span>
-modelrepair::SmoothResult modelrepair::smooth(Mesh&amp; mesh, <span class="kw">unsigned int</span> iterations);</pre>
+modelrepair::SmoothResult modelrepair::smooth(Mesh&amp; mesh, <span class="kw">unsigned int</span> iterations,
+    <span class="kw">double</span> crease_angle = 45.0,
+    std::function&lt;<span class="kw">void</span>(<span class="kw">unsigned int</span>)&gt; on_iteration = nullptr);</pre>
       <p>May throw <code>std::exception</code>. Vertex count and face count are unchanged; only vertex positions are modified.</p>
 
       <h3>Decimate free function</h3>
