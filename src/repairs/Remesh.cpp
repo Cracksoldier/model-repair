@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <numbers>
 #include <vector>
 
 namespace PMP = CGAL::Polygon_mesh_processing;
@@ -28,7 +29,7 @@ RemeshResult remesh(Mesh& mesh, double edge_length_factor, unsigned int iteratio
 
     // Edges sharper than sharp_feature_angle are auto-constrained — preserves
     // hard creases / mechanical edges regardless of their length.
-    const double cos_sharp = std::cos(sharp_feature_angle * M_PI / 180.0);
+    const double cos_sharp = std::cos(sharp_feature_angle * std::numbers::pi / 180.0);
 
     // Capture volume once before all iterations; restore once at the end.
     // PMP::isotropic_remeshing shrinks closed meshes by 1–3 % through vertex

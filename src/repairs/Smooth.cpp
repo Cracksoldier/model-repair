@@ -4,6 +4,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <numbers>
 #include <vector>
 
 namespace PMP = CGAL::Polygon_mesh_processing;
@@ -21,7 +22,7 @@ SmoothResult smooth(Mesh& mesh, unsigned int iterations, double crease_angle,
     SurfMesh& M = mesh.cgal();
 
     constexpr double lambda = 0.5;
-    const double cos_thresh = std::cos(crease_angle * M_PI / 180.0);
+    const double cos_thresh = std::cos(crease_angle * std::numbers::pi / 180.0);
 
     std::vector<Point3> buf(M.num_vertices());
 
