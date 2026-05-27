@@ -38,10 +38,12 @@ private slots:
     void on_phase1_continue();
     void on_phase1_finish();
     void on_phase2_run();
+    void on_phase2_retry();
     void on_phase2_skip();
     void on_phase2_continue();
     void on_phase2_finish();
     void on_phase3_run(double ratio);
+    void on_phase3_retry();
     void on_phase3_skip();
     void on_phase3_save();
 

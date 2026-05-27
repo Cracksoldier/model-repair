@@ -355,6 +355,7 @@ public:
 
 signals:
     void run_clicked();
+    void retry_clicked();
     void skip_clicked();
     void continue_clicked();
     void finish_clicked();
@@ -525,11 +526,14 @@ private:
         vbox->addWidget(stats_label_);
 
         auto* btn_row = new QHBoxLayout;
+        auto* btn_retry    = new QPushButton("← Adjust settings");
         auto* btn_finish   = new QPushButton("Save As…");
         auto* btn_continue = new QPushButton("Continue to Phase 3 →");
         btn_continue->setDefault(true);
+        connect(btn_retry,    &QPushButton::clicked, this, &Phase2Page::retry_clicked);
         connect(btn_finish,   &QPushButton::clicked, this, &Phase2Page::finish_clicked);
         connect(btn_continue, &QPushButton::clicked, this, &Phase2Page::continue_clicked);
+        btn_row->addWidget(btn_retry);
         btn_row->addWidget(btn_finish);
         btn_row->addStretch();
         btn_row->addWidget(btn_continue);
@@ -628,6 +632,7 @@ public:
 
 signals:
     void run_clicked(double ratio);
+    void retry_clicked();
     void skip_clicked();
     void save_clicked();
 
@@ -731,11 +736,14 @@ private:
         vbox->addWidget(stats_label_);
 
         auto* btn_row = new QHBoxLayout;
+        auto* btn_retry = new QPushButton("← Adjust settings");
         auto* btn_close = new QPushButton("Close");
         auto* btn_save  = new QPushButton("Save As…");
         btn_save->setDefault(true);
+        connect(btn_retry, &QPushButton::clicked, this, &Phase3Page::retry_clicked);
         connect(btn_close, &QPushButton::clicked, this, &Phase3Page::skip_clicked);
         connect(btn_save,  &QPushButton::clicked, this, &Phase3Page::save_clicked);
+        btn_row->addWidget(btn_retry);
         btn_row->addWidget(btn_close);
         btn_row->addStretch();
         btn_row->addWidget(btn_save);
@@ -817,13 +825,15 @@ WizardWindow::WizardWindow(std::filesystem::path input_path, QWidget* parent)
     connect(page1_, &Phase1Page::finish_clicked,    this, &WizardWindow::on_phase1_finish);
 
     connect(page2_, &Phase2Page::run_clicked,      this, &WizardWindow::on_phase2_run);
+    connect(page2_, &Phase2Page::retry_clicked,    this, &WizardWindow::on_phase2_retry);
     connect(page2_, &Phase2Page::skip_clicked,     this, &WizardWindow::on_phase2_skip);
     connect(page2_, &Phase2Page::continue_clicked, this, &WizardWindow::on_phase2_continue);
     connect(page2_, &Phase2Page::finish_clicked,   this, &WizardWindow::on_phase2_finish);
 
-    connect(page3_, &Phase3Page::run_clicked,  this, &WizardWindow::on_phase3_run);
-    connect(page3_, &Phase3Page::skip_clicked, this, &WizardWindow::on_phase3_skip);
-    connect(page3_, &Phase3Page::save_clicked, this, &WizardWindow::on_phase3_save);
+    connect(page3_, &Phase3Page::run_clicked,   this, &WizardWindow::on_phase3_run);
+    connect(page3_, &Phase3Page::retry_clicked, this, &WizardWindow::on_phase3_retry);
+    connect(page3_, &Phase3Page::skip_clicked,  this, &WizardWindow::on_phase3_skip);
+    connect(page3_, &Phase3Page::save_clicked,  this, &WizardWindow::on_phase3_save);
 }
 
 WizardWindow::~WizardWindow() = default;
@@ -916,6 +926,12 @@ void WizardWindow::on_phase2_run()
     start_worker_thread(worker);
 }
 
+void WizardWindow::on_phase2_retry()
+{
+    current_mesh_ = phase_start_mesh_;
+    page2_->show_options();
+}
+
 void WizardWindow::on_phase2_skip()     { enter_phase3(); }
 void WizardWindow::on_phase2_continue() { enter_phase3(); }
 void WizardWindow::on_phase2_finish()   { try_save_and_accept(); }
@@ -928,6 +944,12 @@ void WizardWindow::on_phase3_run(double ratio)
     page3_->show_running();
     auto* worker = new WizardWorker(current_mesh_, ratio);
     start_worker_thread(worker);
+}
+
+void WizardWindow::on_phase3_retry()
+{
+    current_mesh_ = phase_start_mesh_;
+    page3_->show_analysis(current_mesh_);
 }
 
 void WizardWindow::on_phase3_skip() { accept(); }
