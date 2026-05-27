@@ -20,6 +20,21 @@ foreach(f ${files_to_patch})
     endif()
 endforeach()
 
+# GCC 16 no longer provides <cstdint> transitively.
+set(cstdint_files_to_patch
+    "Include/Model/Classes/NMR_ModelTriangleSet.h"
+)
+
+foreach(f ${cstdint_files_to_patch})
+    if(EXISTS "${f}")
+        file(READ "${f}" content)
+        if(NOT content MATCHES "#include <cstdint>")
+            file(WRITE "${f}" "#include <cstdint>\n${content}")
+            message(STATUS "lib3mf patch: added <cstdint> to ${f}")
+        endif()
+    endif()
+endforeach()
+
 # GCC 16 promoted -Wincompatible-pointer-types to an error.
 # lib3mf's bundled libzip assigns LPCSTR/LPCWSTR Win32 function pointers into
 # void* struct fields in these two Windows-only sources — inject a pragma to
