@@ -21,7 +21,7 @@ configure_file(
 )
 
 find_package(CGAL 5.6 REQUIRED COMPONENTS Core)
-find_package(Eigen3 3.4 REQUIRED NO_MODULE)
+find_package(Eigen3 REQUIRED NO_MODULE)
 
 add_subdirectory(src)
 
