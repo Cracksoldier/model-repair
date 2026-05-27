@@ -61,10 +61,15 @@ jobs:
         DIST=dist/model-repair
         mkdir -p "$DIST"
 
-        # Executables and our shared library
-        cp build/gui/model-repair-gui.exe "$DIST/"
-        cp build/cli/model-repair.exe     "$DIST/"
-        cp build/src/libmodelrepair.dll   "$DIST/"
+        # qt6_standard_project_setup() sets CMAKE_RUNTIME_OUTPUT_DIRECTORY to
+        # the top-level build dir, so all EXEs and DLLs land in build/ rather
+        # than build/gui/, build/cli/, build/src/. Use find to be resilient.
+        GUI_EXE=$(find build -name "model-repair-gui.exe" ! -path "*/CMakeFiles/*" | head -1)
+        CLI_EXE=$(find build -name "model-repair.exe"     ! -path "*/CMakeFiles/*" | head -1)
+        MR_DLL=$(find  build -name "libmodelrepair.dll"   ! -path "*/CMakeFiles/*" ! -path "*/_deps/*" | head -1)
+        cp "$GUI_EXE" "$DIST/"
+        cp "$CLI_EXE" "$DIST/"
+        cp "$MR_DLL"  "$DIST/"
 
         # lib3mf (shared; mirrors AppImage which copies lib3mf.so*)
         [ -f build/_deps/lib3mf-build/lib3mf.dll ] && \
