@@ -16,13 +16,6 @@ FetchContent_MakeAvailable(lib3mf)
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.0")
     unset(CMAKE_POLICY_VERSION_MINIMUM)
 endif()
-# lib3mf's bundled libzip has Windows source files that assign LPCSTR/LPCWSTR Win32
-# function pointers into void* slots. GCC 16 made -Wincompatible-pointer-types an
-# error; suppress it only for lib3mf's C compilation on Windows/MinGW.
-if(WIN32 AND CMAKE_C_COMPILER_ID MATCHES "GNU")
-    target_compile_options(lib3mf PRIVATE
-        $<$<COMPILE_LANGUAGE:C>:-Wno-incompatible-pointer-types>)
-endif()
 
 # CLI11 — header-only argument parser (MIT)
 FetchContent_Declare(CLI11
