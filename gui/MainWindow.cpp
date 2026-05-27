@@ -465,12 +465,18 @@ void MainWindow::on_repair_cancelled(modelrepair::Mesh partial_mesh, int pipelin
     if (ret == QMessageBox::Yes) {
         repaired_mesh_ = std::move(partial_mesh);
         btn_save_->setEnabled(true);
-        status_label_->setText(
-            QString("Cancelled after %1/6 steps — partial result ready to save.")
-                .arg(pipeline_steps_completed));
+        if (pipeline_steps_completed < 6)
+            status_label_->setText(
+                QString("Cancelled after %1/6 repair steps — partial result ready to save.")
+                    .arg(pipeline_steps_completed));
+        else
+            status_label_->setText("Repair complete; post-processing cancelled — result ready to save.");
     } else {
-        status_label_->setText(
-            QString("Cancelled after %1/6 steps.").arg(pipeline_steps_completed));
+        if (pipeline_steps_completed < 6)
+            status_label_->setText(
+                QString("Cancelled after %1/6 repair steps.").arg(pipeline_steps_completed));
+        else
+            status_label_->setText("Repair complete; post-processing cancelled.");
     }
 }
 

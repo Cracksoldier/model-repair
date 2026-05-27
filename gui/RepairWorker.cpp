@@ -6,7 +6,6 @@
 #include "modelrepair/RepairPipeline.hpp"
 #include "modelrepair/io/MeshIO.hpp"
 
-#include <QMetaObject>
 
 namespace gui
 {
@@ -80,6 +79,11 @@ void RepairWorker::run()
     catch (const std::exception& e)
     {
         emit finished({}, {}, {}, QString::fromStdString(e.what()));
+        return;
+    }
+
+    if (cancel_flag_->load(std::memory_order_relaxed)) {
+        emit cancelled(std::move(mesh), 6);
         return;
     }
 
