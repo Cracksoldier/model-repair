@@ -1,0 +1,123 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version label for the artifact (e.g. v0.2.0). Defaults to "dev".'
+        required: false
+        default: 'dev'
+      create_release:
+        description: 'Create a GitHub Release and attach the ZIP'
+        type: boolean
+        required: false
+        default: false
+      next_version:
+        description: 'Version to set in CMakeLists.txt after release (e.g. 0.2.0). Leave blank to skip.'
+        required: false
+        default: ''
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: msys2/setup-msys2@v2
+      with:
+        msystem: UCRT64
+        update: true
+        install: >-
+          mingw-w64-ucrt-x86_64-cmake
+          mingw-w64-ucrt-x86_64-ninja
+          mingw-w64-ucrt-x86_64-gcc
+          mingw-w64-ucrt-x86_64-cgal
+          mingw-w64-ucrt-x86_64-eigen3
+          mingw-w64-ucrt-x86_64-boost
+          mingw-w64-ucrt-x86_64-gmp
+          mingw-w64-ucrt-x86_64-mpfr
+          mingw-w64-ucrt-x86_64-qt6-base
+          mingw-w64-ucrt-x86_64-qt6-tools
+
+    - name: Configure
+      run: |
+        cmake -B build -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DMODELREPAIR_BUILD_TESTS=OFF \
+          -DMODELREPAIR_ENABLE_ASAN=OFF
+
+    - name: Build
+      run: cmake --build build -j$(nproc)
+
+    - name: Bundle into dist/
+      run: |
+        DIST=dist/model-repair
+        mkdir -p "$DIST"
+
+        # Executables and our shared library
+        cp build/gui/model-repair-gui.exe "$DIST/"
+        cp build/cli/model-repair.exe     "$DIST/"
+        cp build/src/libmodelrepair.dll   "$DIST/"
+
+        # lib3mf (shared; mirrors AppImage which copies lib3mf.so*)
+        [ -f build/_deps/lib3mf-build/lib3mf.dll ] && \
+          cp build/_deps/lib3mf-build/lib3mf.dll "$DIST/"
+
+        # Qt DLLs, platform plugin, styles, imageformats, etc.
+        /ucrt64/bin/windeployqt6 --no-translations "$DIST/model-repair-gui.exe"
+
+        # Remaining MSYS2/UCRT64 runtime DLLs (GMP, MPFR, GCC runtime, winpthread, …)
+        # Loop over all binaries in dist/ so transitive deps of newly-copied DLLs are caught.
+        for f in "$DIST"/*.exe "$DIST"/*.dll; do
+          ldd "$f" 2>/dev/null
+        done \
+          | grep '/ucrt64/bin' | awk '{print $3}' | sort -u \
+          | xargs -I{} cp -u {} "$DIST/"
+
+    - name: Create ZIP
+      shell: pwsh
+      run: |
+        Compress-Archive -Path dist\model-repair `
+          -DestinationPath "model-repair-${{ inputs.version }}-windows-x64.zip"
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: model-repair-${{ inputs.version }}-windows-x64
+        path: model-repair-*-windows-x64.zip
+        if-no-files-found: error
+
+    - name: Create GitHub Release
+      if: ${{ inputs.create_release }}
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ inputs.version }}
+        name: model-repair ${{ inputs.version }}
+        files: model-repair-*-windows-x64.zip
+        draft: true
+
+    - name: Bump version in CMakeLists.txt
+      if: ${{ inputs.create_release && inputs.next_version != '' }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        git config --global safe.directory '*'
+        NEXT="${{ inputs.next_version }}"
+        NEXT="${NEXT#v}"
+        sed -i -E \
+          "s/(project\(model-repair VERSION )[0-9]+\.[0-9]+\.[0-9]+/\1${NEXT}/" \
+          CMakeLists.txt
+        git config user.name  "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add CMakeLists.txt
+        git commit -m "Bump version to ${NEXT}"
+        git remote set-url origin \
+          "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+        git push origin HEAD:${{ github.ref_name }}

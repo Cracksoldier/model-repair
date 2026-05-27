@@ -33,12 +33,23 @@
       "cacheVariables": {
         "MODELREPAIR_BUILD_GUI": "OFF"
       }
+    },
+    {
+      "name": "windows-release",
+      "inherits": "base",
+      "displayName": "Windows Release (MSYS2 MinGW)",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "MODELREPAIR_BUILD_TESTS": "false",
+        "MODELREPAIR_ENABLE_ASAN": "false"
+      }
     }
   ],
   "buildPresets": [
-    { "name": "debug",          "configurePreset": "debug" },
-    { "name": "release",        "configurePreset": "release" },
-    { "name": "release-nogui",  "configurePreset": "release-nogui" }
+    { "name": "debug",           "configurePreset": "debug" },
+    { "name": "release",         "configurePreset": "release" },
+    { "name": "release-nogui",   "configurePreset": "release-nogui" },
+    { "name": "windows-release", "configurePreset": "windows-release" }
   ],
   "testPresets": [
     {
