@@ -1477,7 +1477,10 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
         A warning label appears when remesh is enabled and the mesh has more than 200 000
         faces, and when smooth iterations exceed 10. Click <strong>Skip this phase</strong>
         to proceed directly to Phase 3. Progress tracks one slot per remesh iteration followed
-        by one slot per smooth iteration.
+        by one slot per smooth iteration. After the phase completes, a
+        <strong>← Adjust settings</strong> button appears in the preview — clicking it reverts
+        the mesh to its pre-phase state and returns to the options page with all parameter values
+        intact, so you can tweak them and re-run without restarting the wizard.
       </p>
 
       <h4>Phase 3 — Decimate (optional)</h4>
@@ -1496,7 +1499,9 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
         triangles) then click <strong>Run Decimate</strong>, or click
         <strong>Skip this phase</strong> to go straight to the save step.
         Navigation after decimation: <strong>Close</strong> (discard) or
-        <strong>Save As…</strong>.
+        <strong>Save As…</strong>. A <strong>← Adjust settings</strong> button also appears
+        in the preview — clicking it reverts the decimation and returns to the options page
+        with the retain-fraction value intact.
       </p>
 
       <h3 id="gui-preview" class="anchor">3D Preview Window</h3>
