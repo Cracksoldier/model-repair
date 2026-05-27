@@ -11,10 +11,18 @@
 namespace gui
 {
 
+namespace {
+struct CancelledException {};
+} // namespace
+
 RepairWorker::RepairWorker(std::filesystem::path input,
                            modelrepair::RepairOptions opts,
+                           std::shared_ptr<std::atomic<bool>> cancel_flag,
                            QObject* parent)
-    : QObject(parent), input_(std::move(input)), opts_(std::move(opts))
+    : QObject(parent)
+    , input_(std::move(input))
+    , opts_(std::move(opts))
+    , cancel_flag_(std::move(cancel_flag))
 {}
 
 void RepairWorker::run()
@@ -45,11 +53,16 @@ void RepairWorker::run()
     // Emit directly — Qt's auto-connection detects the cross-thread receiver
     // (MainWindow lives on the main thread) and uses QueuedConnection, posting
     // to the main event loop which processes it between mesh operations.
-    // The old invokeMethod(this, lambda, QueuedConnection) queued to the worker
-    // thread itself, which has no exec() loop during run() and never delivered.
+    // Check cancel flag before each step; notify() is called before the step runs,
+    // so steps_completed = step - 1 at the point of cancellation.
+    int steps_completed = 0;
     pipeline.set_progress_callback(
-        [this, grand_total](int step, int /*total*/, const std::string& name)
+        [this, grand_total, &steps_completed](int step, int /*total*/, const std::string& name)
         {
+            if (cancel_flag_->load(std::memory_order_relaxed)) {
+                steps_completed = step - 1;
+                throw CancelledException{};
+            }
             emit progressChanged(step, grand_total, QString::fromStdString(name));
         });
 
@@ -57,6 +70,12 @@ void RepairWorker::run()
     try
     {
         report = pipeline.run(mesh);
+        steps_completed = 6;
+    }
+    catch (const CancelledException&)
+    {
+        emit cancelled(std::move(mesh), steps_completed);
+        return;
     }
     catch (const std::exception& e)
     {
@@ -69,6 +88,10 @@ void RepairWorker::run()
     // Post-repair remeshing (before smooth)
     if (opts_.remesh && !report.diagnose_only)
     {
+        if (cancel_flag_->load(std::memory_order_relaxed)) {
+            emit cancelled(std::move(mesh), 6);
+            return;
+        }
         const unsigned int total_iters = opts_.remesh_iterations;
         // Bar advances one slot per iteration; emit first slot before remesh starts,
         // callback advances it for each subsequent iteration. on_progress uses
@@ -76,6 +99,7 @@ void RepairWorker::run()
         emit progressChanged(post_step + 1, grand_total,
             QString("Remeshing 1/%1").arg(total_iters));
         modelrepair::RemeshResult rr;
+        bool remesh_cancelled = false;
         try
         {
             rr = modelrepair::remesh(
@@ -86,11 +110,21 @@ void RepairWorker::run()
                         emit progressChanged(post_step + completed + 1, grand_total,
                             QString("Remeshing %1/%2").arg(completed + 1).arg(total_iters));
                     }
+                    if (cancel_flag_->load(std::memory_order_relaxed))
+                        throw CancelledException{};
                 });
+        }
+        catch (const CancelledException&)
+        {
+            remesh_cancelled = true;
         }
         catch (const std::exception& e)
         {
             emit finished({}, {}, {}, QString("Remeshing failed: ") + e.what());
+            return;
+        }
+        if (remesh_cancelled) {
+            emit cancelled(std::move(mesh), 6);
             return;
         }
         post_step += static_cast<int>(total_iters);
@@ -109,10 +143,15 @@ void RepairWorker::run()
     // Post-repair smoothing
     if (opts_.smooth && !report.diagnose_only)
     {
+        if (cancel_flag_->load(std::memory_order_relaxed)) {
+            emit cancelled(std::move(mesh), 6);
+            return;
+        }
         const unsigned int total_iters = opts_.smooth_iterations;
         emit progressChanged(post_step + 1, grand_total,
             QString("Smoothing 1/%1").arg(total_iters));
         modelrepair::SmoothResult smr;
+        bool smooth_cancelled = false;
         try
         {
             smr = modelrepair::smooth(
@@ -122,11 +161,21 @@ void RepairWorker::run()
                         emit progressChanged(post_step + completed + 1, grand_total,
                             QString("Smoothing %1/%2").arg(completed + 1).arg(total_iters));
                     }
+                    if (cancel_flag_->load(std::memory_order_relaxed))
+                        throw CancelledException{};
                 });
+        }
+        catch (const CancelledException&)
+        {
+            smooth_cancelled = true;
         }
         catch (const std::exception& e)
         {
             emit finished({}, {}, {}, QString("Smoothing failed: ") + e.what());
+            return;
+        }
+        if (smooth_cancelled) {
+            emit cancelled(std::move(mesh), 6);
             return;
         }
         post_step += static_cast<int>(total_iters);
@@ -144,6 +193,10 @@ void RepairWorker::run()
     // Post-repair decimation
     if (opts_.decimate && !report.diagnose_only)
     {
+        if (cancel_flag_->load(std::memory_order_relaxed)) {
+            emit cancelled(std::move(mesh), 6);
+            return;
+        }
         emit progressChanged(++post_step, grand_total, "Decimating");
         modelrepair::DecimateResult dr;
         try

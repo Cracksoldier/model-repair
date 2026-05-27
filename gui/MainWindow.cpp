@@ -190,12 +190,15 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     btn_repair_->setDefault(true);
     btn_diagnose_ = new QPushButton("Diagnose");
     btn_diagnose_->setEnabled(false);
+    btn_cancel_   = new QPushButton("Cancel");
+    btn_cancel_->setEnabled(false);
     btn_save_     = new QPushButton("Save As…");
     btn_save_->setEnabled(false);
     btn_wizard_   = new QPushButton("Wizard…");
     btn_wizard_->setEnabled(false);
     btn_row->addWidget(btn_repair_);
     btn_row->addWidget(btn_diagnose_);
+    btn_row->addWidget(btn_cancel_);
     btn_row->addWidget(btn_save_);
     btn_batch_ = new QPushButton("Batch Repair…");
     btn_row->addWidget(btn_batch_);
@@ -204,6 +207,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
 
     connect(btn_repair_,   &QPushButton::clicked, this, &MainWindow::on_repair_clicked);
     connect(btn_diagnose_, &QPushButton::clicked, this, &MainWindow::on_diagnose_clicked);
+    connect(btn_cancel_,   &QPushButton::clicked, this, &MainWindow::on_cancel_clicked);
     connect(btn_save_,     &QPushButton::clicked, this, &MainWindow::on_save_clicked);
     connect(btn_batch_,    &QPushButton::clicked, this, [this]
     {
@@ -331,16 +335,20 @@ void MainWindow::start_worker(modelrepair::RepairOptions opts)
     status_label_->setText("Loading…");
     report_view_->clear();
 
-    auto* worker = new RepairWorker(*input_path_, std::move(opts));
+    cancel_flag_ = std::make_shared<std::atomic<bool>>(false);
+
+    auto* worker = new RepairWorker(*input_path_, std::move(opts), cancel_flag_);
     worker_thread_ = new QThread(this);
     worker->moveToThread(worker_thread_);
 
-    connect(worker_thread_, &QThread::started,  worker, &RepairWorker::run);
-    connect(worker, &RepairWorker::progressChanged, this, &MainWindow::on_progress);
-    connect(worker, &RepairWorker::finished,        this, &MainWindow::on_repair_finished);
-    connect(worker, &RepairWorker::finished, worker_thread_, &QThread::quit);
-    connect(worker_thread_, &QThread::finished, worker,        &QObject::deleteLater);
-    connect(worker_thread_, &QThread::finished, worker_thread_, &QObject::deleteLater);
+    connect(worker_thread_, &QThread::started,       worker, &RepairWorker::run);
+    connect(worker, &RepairWorker::progressChanged,  this,   &MainWindow::on_progress);
+    connect(worker, &RepairWorker::finished,         this,   &MainWindow::on_repair_finished);
+    connect(worker, &RepairWorker::cancelled,        this,   &MainWindow::on_repair_cancelled);
+    connect(worker, &RepairWorker::finished,         worker_thread_, &QThread::quit);
+    connect(worker, &RepairWorker::cancelled,        worker_thread_, &QThread::quit);
+    connect(worker_thread_, &QThread::finished,      worker,         &QObject::deleteLater);
+    connect(worker_thread_, &QThread::finished,      worker_thread_, &QObject::deleteLater);
 
     worker_thread_->start();
 }
@@ -360,6 +368,7 @@ void MainWindow::on_repair_finished(modelrepair::RepairReport report,
 {
     set_busy(false);
     worker_thread_ = nullptr;
+    cancel_flag_.reset();
 
     if (!error.isEmpty())
     {
@@ -423,10 +432,53 @@ void MainWindow::on_save_clicked()
     }
 }
 
+void MainWindow::on_cancel_clicked()
+{
+    if (cancel_flag_)
+        cancel_flag_->store(true, std::memory_order_relaxed);
+    btn_cancel_->setEnabled(false);
+    status_label_->setText("Cancelling…");
+}
+
+void MainWindow::on_repair_cancelled(modelrepair::Mesh partial_mesh, int pipeline_steps_completed)
+{
+    set_busy(false);
+    worker_thread_ = nullptr;
+    cancel_flag_.reset();
+
+    if (pipeline_steps_completed == 0) {
+        status_label_->setText("Cancelled — no steps completed.");
+        return;
+    }
+
+    QString msg;
+    if (pipeline_steps_completed < 6) {
+        msg = QString("Repair was cancelled after %1 of 6 pipeline steps.\n"
+                      "Save the partial result?").arg(pipeline_steps_completed);
+    } else {
+        msg = "Post-processing was cancelled. Repair itself completed successfully.\n"
+              "Save the result?";
+    }
+
+    auto ret = QMessageBox::question(this, "Repair Cancelled", msg,
+                                     QMessageBox::Yes | QMessageBox::No);
+    if (ret == QMessageBox::Yes) {
+        repaired_mesh_ = std::move(partial_mesh);
+        btn_save_->setEnabled(true);
+        status_label_->setText(
+            QString("Cancelled after %1/6 steps — partial result ready to save.")
+                .arg(pipeline_steps_completed));
+    } else {
+        status_label_->setText(
+            QString("Cancelled after %1/6 steps.").arg(pipeline_steps_completed));
+    }
+}
+
 void MainWindow::set_busy(bool busy)
 {
     btn_repair_->setEnabled(!busy);
     btn_diagnose_->setEnabled(!busy && input_path_.has_value());
+    btn_cancel_->setEnabled(busy);
     btn_save_->setEnabled(!busy && repaired_mesh_.has_value());
 
     btn_open_->setEnabled(!busy);

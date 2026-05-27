@@ -434,7 +434,8 @@ void BatchWindow::start_next_job()
     lbl_status_->setText(QString("File %1 / %2: loading…")
         .arg(row + 1).arg(jobs_.size()));
 
-    auto* worker   = new RepairWorker(jobs_[row].input_path, collect_options());
+    auto* worker   = new RepairWorker(jobs_[row].input_path, collect_options(),
+                                      std::make_shared<std::atomic<bool>>(false));
     worker_thread_ = new QThread(this);
     worker->moveToThread(worker_thread_);
 

@@ -8,7 +8,9 @@
 #include <QMainWindow>
 #include <QDragEnterEvent>
 #include <QDropEvent>
+#include <atomic>
 #include <filesystem>
+#include <memory>
 #include <optional>
 
 class QLabel;
@@ -42,12 +44,14 @@ private slots:
     void on_open_clicked();
     void on_repair_clicked();
     void on_diagnose_clicked();
+    void on_cancel_clicked();
     void on_save_clicked();
     void on_progress(int step, int total, const QString& name);
     void on_repair_finished(modelrepair::RepairReport report,
                             modelrepair::Mesh before_mesh,
                             modelrepair::Mesh after_mesh,
                             QString error);
+    void on_repair_cancelled(modelrepair::Mesh partial_mesh, int pipeline_steps_completed);
     void on_elapsed_tick();
 
 private:
@@ -91,6 +95,7 @@ private:
     // Actions
     QPushButton* btn_repair_;
     QPushButton* btn_diagnose_;
+    QPushButton* btn_cancel_;
     QPushButton* btn_save_;
     QPushButton* btn_open_;
     QPushButton* btn_batch_;
@@ -109,6 +114,7 @@ private:
     QElapsedTimer elapsed_clock_;
     QElapsedTimer task_clock_;
     WizardWindow* wizard_         = nullptr;
+    std::shared_ptr<std::atomic<bool>> cancel_flag_;
 };
 
 } // namespace gui
