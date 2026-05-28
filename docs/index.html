@@ -234,7 +234,7 @@
       <div class="stat"><div class="stat-val">6</div><div class="stat-label">repair steps</div></div>
       <div class="stat"><div class="stat-val">4</div><div class="stat-label">file formats</div></div>
       <div class="stat"><div class="stat-val">2</div><div class="stat-label">frontends (CLI + GUI)</div></div>
-      <div class="stat"><div class="stat-val">21</div><div class="stat-label">automated tests</div></div>
+      <div class="stat"><div class="stat-val">24</div><div class="stat-label">automated tests</div></div>
     </div>
   </div>
 </section>
@@ -321,7 +321,7 @@
       <a class="feature-card" href="documentation.html#smooth">
         <div class="feature-icon">〰️</div>
         <h3>Mesh Smoothing</h3>
-        <p>Soften blocky or stepped surfaces with CGAL angle smoothing. Runs after repair, moves vertices to minimize dihedral angles without changing topology.</p>
+        <p>Cotangent-weighted feature-preserving Laplacian with crease barriers. Runs multi-core on CPU (TBB) or entirely on GPU (Vulkan compute) — vertex data stays in VRAM across all iterations, with no per-iteration round-trips.</p>
         <span class="learn-more">Learn more →</span>
       </a>
 
@@ -396,20 +396,27 @@ model-repair.exe broken.stl repaired.stl <span class="flag">--verbose</span></pr
     </div>
 
     <div id="tab-arch" class="tab-panel">
-      <pre><button class="copy-btn">copy</button><span class="cmt"># Install system dependencies</span>
-<span class="cmd">sudo pacman -S</span> <span class="val">cgal eigen3 boost gmp mpfr qt6-base cmake git</span></pre>
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Install system dependencies (includes TBB + Vulkan GPU smoothing)</span>
+<span class="cmd">sudo pacman -S</span> <span class="val">cgal eigen3 boost gmp mpfr qt6-base \
+  onetbb vulkan-headers vulkan-icd-loader shaderc cmake git</span></pre>
     </div>
 
     <div id="tab-ubuntu" class="tab-panel">
-      <pre><button class="copy-btn">copy</button><span class="cmt"># Install system dependencies</span>
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Install system dependencies (TBB included)</span>
 <span class="cmd">sudo apt install</span> <span class="val">libcgal-dev libeigen3-dev libboost-dev libgmp-dev \
-  libmpfr-dev qt6-base-dev cmake build-essential git</span></pre>
+  libmpfr-dev qt6-base-dev libtbb-dev cmake build-essential git</span>
+
+<span class="cmt"># Optional: Vulkan GPU smoothing</span>
+<span class="cmd">sudo apt install</span> <span class="val">libvulkan-dev glslc</span></pre>
     </div>
 
     <div id="tab-fedora" class="tab-panel">
-      <pre><button class="copy-btn">copy</button><span class="cmt"># Install system dependencies</span>
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Install system dependencies (TBB included)</span>
 <span class="cmd">sudo dnf install</span> <span class="val">cgal-devel eigen3-devel boost-devel gmp-devel \
-  mpfr-devel qt6-qtbase-devel cmake gcc-c++ git</span></pre>
+  mpfr-devel qt6-qtbase-devel tbb-devel cmake gcc-c++ git</span>
+
+<span class="cmt"># Optional: Vulkan GPU smoothing</span>
+<span class="cmd">sudo dnf install</span> <span class="val">vulkan-headers vulkan-loader-devel glslc</span></pre>
     </div>
 
     <pre><button class="copy-btn">copy</button><span class="cmt"># Clone and build</span>
