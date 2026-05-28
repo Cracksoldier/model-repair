@@ -94,7 +94,10 @@ static bool upload(VkDevice dev, VkPhysicalDevice pd, VkQueue queue,
     cbai.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     cbai.commandBufferCount = 1;
     VkCommandBuffer cb;
-    vkAllocateCommandBuffers(dev, &cbai, &cb);
+    if (vkAllocateCommandBuffers(dev, &cbai, &cb) != VK_SUCCESS) {
+        destroy_buf(dev, stage);
+        return false;
+    }
 
     VkCommandBufferBeginInfo cbbi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     cbbi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -185,12 +188,16 @@ VulkanSmoothing::VulkanSmoothing(Mesh& mesh, double crease_angle, float lambda)
     if (vkCreateInstance(&ici, nullptr, &impl_->instance) != VK_SUCCESS)
         return;
 
-    // ── Physical device: first with a compute queue family
+    // ── Physical device: prefer discrete GPU, fall back to any compute-capable device
     uint32_t pd_count = 0;
     vkEnumeratePhysicalDevices(impl_->instance, &pd_count, nullptr);
     if (pd_count == 0) return;
     std::vector<VkPhysicalDevice> pds(pd_count);
     vkEnumeratePhysicalDevices(impl_->instance, &pd_count, pds.data());
+
+    struct Candidate { VkPhysicalDevice pd; uint32_t qf; };
+    Candidate discrete{VK_NULL_HANDLE, 0};
+    Candidate any{VK_NULL_HANDLE, 0};
 
     for (auto pd : pds) {
         uint32_t qf_count = 0;
@@ -198,15 +205,21 @@ VulkanSmoothing::VulkanSmoothing(Mesh& mesh, double crease_angle, float lambda)
         std::vector<VkQueueFamilyProperties> qfp(qf_count);
         vkGetPhysicalDeviceQueueFamilyProperties(pd, &qf_count, qfp.data());
         for (uint32_t i = 0; i < qf_count; ++i) {
-            if (qfp[i].queueFlags & VK_QUEUE_COMPUTE_BIT) {
-                impl_->phys_dev  = pd;
-                impl_->queue_fam = i;
-                break;
+            if (!(qfp[i].queueFlags & VK_QUEUE_COMPUTE_BIT)) continue;
+            if (any.pd == VK_NULL_HANDLE) any = {pd, i};
+            if (discrete.pd == VK_NULL_HANDLE) {
+                VkPhysicalDeviceProperties props;
+                vkGetPhysicalDeviceProperties(pd, &props);
+                if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+                    discrete = {pd, i};
             }
+            break;
         }
-        if (impl_->phys_dev != VK_NULL_HANDLE) break;
     }
-    if (impl_->phys_dev == VK_NULL_HANDLE) return;
+    const Candidate& chosen = (discrete.pd != VK_NULL_HANDLE) ? discrete : any;
+    if (chosen.pd == VK_NULL_HANDLE) return;
+    impl_->phys_dev  = chosen.pd;
+    impl_->queue_fam = chosen.qf;
 
     // ── Logical device + queue
     float prio = 1.0f;
@@ -472,7 +485,7 @@ void VulkanSmoothing::run(unsigned int n_iterations,
     cbai.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     cbai.commandBufferCount = 1;
     VkCommandBuffer cb;
-    vkAllocateCommandBuffers(dev, &cbai, &cb);
+    if (vkAllocateCommandBuffers(dev, &cbai, &cb) != VK_SUCCESS) return;
 
     for (unsigned int i = 0; i < n_iterations; ++i) {
         VkCommandBufferBeginInfo cbbi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
@@ -542,7 +555,10 @@ void VulkanSmoothing::download(Mesh& mesh)
     cbai.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     cbai.commandBufferCount = 1;
     VkCommandBuffer cb;
-    vkAllocateCommandBuffers(dev, &cbai, &cb);
+    if (vkAllocateCommandBuffers(dev, &cbai, &cb) != VK_SUCCESS) {
+        destroy_buf(dev, stage);
+        return;
+    }
 
     VkCommandBufferBeginInfo cbbi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     cbbi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
