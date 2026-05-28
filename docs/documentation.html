@@ -300,9 +300,11 @@
     </div>
     <div class="sidebar-section">
       <div class="sidebar-section-label">Distribution</div>
-      <a href="#appimage">AppImage Release</a>
+      <a href="#appimage">Linux — AppImage</a>
       <a href="#appimage-workflow" class="sub">Workflow inputs</a>
       <a href="#appimage-version" class="sub">Version bump</a>
+      <a href="#windows-release">Windows — ZIP</a>
+      <a href="#windows-workflow" class="sub">Workflow inputs</a>
     </div>
   </aside>
 
@@ -313,15 +315,15 @@
     <section id="overview" class="anchor">
       <h1>model-repair Documentation</h1>
       <p>
-        <strong>model-repair</strong> is a Linux 3D mesh repair tool built on
+        <strong>model-repair</strong> is a 3D mesh repair tool for Linux and Windows built on
         <a href="https://www.cgal.org/" target="_blank" rel="noopener">CGAL</a>.
         It automatically detects and fixes the six most common mesh defects that prevent
         3D printing, boolean operations, and FEM analysis from working correctly.
       </p>
       <p>
-        The tool ships as a shared library (<code>libmodelrepair.so</code>) with two frontends:
-        a CLI for scripting and a Qt 6 GUI for interactive use. All repair logic lives in
-        the library — the frontends are thin wrappers.
+        The tool ships as a shared library (<code>libmodelrepair.so</code> / <code>libmodelrepair.dll</code>)
+        with two frontends: a CLI for scripting and a Qt 6 GUI for interactive use.
+        All repair logic lives in the library — the frontends are thin wrappers.
       </p>
 
       <h2 id="pipeline" class="anchor">The Repair Pipeline</h2>
@@ -1860,7 +1862,7 @@ modelrepair::DecimateResult modelrepair::decimate(Mesh&amp; mesh, <span class="k
 
     <!-- ── AppImage ─────────────────────────────────────────────────── -->
     <section id="appimage" class="anchor">
-      <h2>AppImage Release</h2>
+      <h2>Linux — AppImage Release</h2>
       <p>
         Pre-built Linux AppImages are published on the
         <a href="https://github.com/Cracksoldier/3d-print-model-repair/releases" target="_blank" rel="noopener">GitHub Releases page</a>.
@@ -1870,7 +1872,7 @@ modelrepair::DecimateResult modelrepair::decimate(Mesh&amp; mesh, <span class="k
 
       <h3>Running the AppImage</h3>
       <pre><button class="copy-btn">copy</button><span class="cmt"># Set the version tag from the Releases page, then download</span>
-<span class="val">VERSION</span>=v0.1.0
+<span class="val">VERSION</span>=v0.3.0
 <span class="cmd">wget</span> <span class="str">https://github.com/Cracksoldier/3d-print-model-repair/releases/download/<span class="val">${VERSION}</span>/model-repair-<span class="val">${VERSION}</span>-x86_64.AppImage</span>
 <span class="cmd">chmod</span> <span class="val">+x</span> model-repair-<span class="val">${VERSION}</span>-x86_64.AppImage
 
@@ -1940,11 +1942,65 @@ modelrepair::DecimateResult modelrepair::decimate(Mesh&amp; mesh, <span class="k
       </div>
     </section>
 
+    <!-- ── Windows ──────────────────────────────────────────────────── -->
+    <section id="windows-release" class="anchor">
+      <h2>Windows — ZIP Release</h2>
+      <p>
+        Pre-built Windows packages are published on the
+        <a href="https://github.com/Cracksoldier/3d-print-model-repair/releases" target="_blank" rel="noopener">GitHub Releases page</a>
+        as a self-contained ZIP. Extract it anywhere and run — no installer, no PATH changes, no MSYS2 required.
+        The ZIP bundles Qt 6, all MSYS2/UCRT64 runtime DLLs (GMP, MPFR, GCC runtime, libwinpthread),
+        and <code>libmodelrepair.dll</code>. Requires 64-bit Windows 10 or later.
+      </p>
+
+      <h3>Running on Windows</h3>
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Download and extract model-repair-vX.Y.Z-windows-x64.zip from the Releases page.</span>
+<span class="cmt"># The extracted folder contains everything needed:</span>
+
+model-repair\
+  model-repair-gui.exe     <span class="cmt"># double-click to open the GUI</span>
+  model-repair.exe         <span class="cmt"># CLI — run from cmd or PowerShell</span>
+  libmodelrepair.dll
+  lib3mf.dll
+  Qt6Core.dll  Qt6Gui.dll  Qt6Widgets.dll  ...
+
+<span class="cmt"># CLI example (from a terminal inside the extracted folder):</span>
+<span class="cmd">.\model-repair.exe</span> broken.stl repaired.stl <span class="flag">--verbose</span></pre>
+
+      <h2 id="windows-workflow" class="anchor">Workflow Inputs</h2>
+      <p>
+        Windows releases are built by a manually triggered GitHub Actions workflow
+        (<code>.github/workflows/windows.yml</code>). It uses MSYS2 UCRT64 (MinGW-w64 GCC)
+        and installs all heavy dependencies (CGAL, Eigen3, Qt6, GMP, MPFR, Boost) as prebuilt
+        MSYS2 packages — no source compilation needed.
+      </p>
+      <p>
+        Trigger it via <strong>Actions → Build Windows → Run workflow</strong> with the same
+        three inputs as the AppImage workflow:
+      </p>
+
+      <table>
+        <thead><tr><th>Input</th><th>Example</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>version</code></td><td><code>v0.3.0</code></td><td>ZIP filename label. Defaults to <code>dev</code> for test builds.</td></tr>
+          <tr><td><code>create_release</code></td><td><code>true</code></td><td>Create a draft GitHub Release with the ZIP attached and push the git tag.</td></tr>
+          <tr><td><code>next_version</code></td><td><code>0.4.0</code></td><td>After the release, update <code>CMakeLists.txt</code> and push a version-bump commit to <code>main</code>. Leave blank to skip.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout info">
+        <strong>Run both workflows for a full release.</strong>
+        Trigger <em>Build AppImage</em> and <em>Build Windows</em> independently — each uploads
+        its own artifact and, when <code>create_release=true</code>, attaches it to the same
+        draft GitHub Release. Publish the draft after both artifacts are attached.
+      </div>
+    </section>
+
   </main>
 </div>
 
 <footer>
-  <span>model-repair v0.1.0 — MIT License</span>
+  <span>model-repair v0.3.0 — MIT License</span>
   <div class="footer-links">
     <a href="index.html">← Home</a>
     <a href="https://github.com/Cracksoldier/3d-print-model-repair" target="_blank" rel="noopener">GitHub</a>

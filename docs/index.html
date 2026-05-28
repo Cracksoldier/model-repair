@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>model-repair — Linux 3D Mesh Repair Tool</title>
+  <title>model-repair — 3D Mesh Repair Tool for Linux &amp; Windows</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -214,14 +214,18 @@
       Fix broken 3D meshes<br>with <code>model-repair</code>
     </h1>
     <p class="hero-sub">
-      A CGAL-powered mesh repair library for Linux with a CLI and Qt6 GUI.
+      A CGAL-powered mesh repair library for Linux and Windows with a CLI and Qt6 GUI.
       Automatically fixes duplicate vertices, degenerate faces, non-manifold topology,
       bad normals, open holes, and self-intersections — in a single pass.
     </p>
     <div class="hero-actions">
       <a class="btn btn-primary" href="https://github.com/Cracksoldier/3d-print-model-repair/releases/latest" target="_blank" rel="noopener">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.75 14A1.75 1.75 0 011 12.25v-2.5a.75.75 0 011.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 00.25-.25v-2.5a.75.75 0 011.5 0v2.5A1.75 1.75 0 0113.25 14H2.75zM7.25 7.689L4.03 4.469a.749.749 0 11-1.06 1.061l4.5 4.5a.75.75 0 001.06 0l4.5-4.5a.749.749 0 00-1.06-1.061L8.75 7.689V1.75a.75.75 0 00-1.5 0v5.939z"/></svg>
-        Download AppImage
+        Linux AppImage
+      </a>
+      <a class="btn btn-primary" href="https://github.com/Cracksoldier/3d-print-model-repair/releases/latest" target="_blank" rel="noopener" style="background:var(--bg3);border:1px solid var(--border);">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.75 14A1.75 1.75 0 011 12.25v-2.5a.75.75 0 011.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 00.25-.25v-2.5a.75.75 0 011.5 0v2.5A1.75 1.75 0 0113.25 14H2.75zM7.25 7.689L4.03 4.469a.749.749 0 11-1.06 1.061l4.5 4.5a.75.75 0 001.06 0l4.5-4.5a.749.749 0 00-1.06-1.061L8.75 7.689V1.75a.75.75 0 00-1.5 0v5.939z"/></svg>
+        Windows ZIP
       </a>
       <a class="btn btn-secondary" href="#setup">Build from Source</a>
       <a class="btn btn-secondary" href="documentation.html">Documentation →</a>
@@ -347,18 +351,19 @@
   <div class="container">
     <p class="section-label">Quick Setup</p>
     <h2>Install or build</h2>
-    <p class="section-intro">The easiest way to get started is the pre-built AppImage — no installation required. Or build from source if you need CGAL 6 features on your distro.</p>
+    <p class="section-intro">The easiest way to get started is a pre-built release — no installation required. Choose your platform below, or build from source.</p>
 
     <div class="tab-bar">
-      <button class="tab-btn active" data-tab="appimage">AppImage (any distro)</button>
-      <button class="tab-btn" data-tab="arch">Arch / CachyOS</button>
-      <button class="tab-btn" data-tab="ubuntu">Ubuntu / Debian</button>
-      <button class="tab-btn" data-tab="fedora">Fedora</button>
+      <button class="tab-btn active" data-tab="appimage">Linux AppImage</button>
+      <button class="tab-btn" data-tab="windows">Windows ZIP</button>
+      <button class="tab-btn" data-tab="arch">Build — Arch / CachyOS</button>
+      <button class="tab-btn" data-tab="ubuntu">Build — Ubuntu / Debian</button>
+      <button class="tab-btn" data-tab="fedora">Build — Fedora</button>
     </div>
 
     <div id="tab-appimage" class="tab-panel active">
       <pre><button class="copy-btn">copy</button><span class="cmt"># Set the version tag from the Releases page, then download</span>
-<span class="val">VERSION</span>=v0.1.0
+<span class="val">VERSION</span>=v0.3.0
 <span class="cmd">wget</span> <span class="str">https://github.com/Cracksoldier/3d-print-model-repair/releases/download/<span class="val">${VERSION}</span>/model-repair-<span class="val">${VERSION}</span>-x86_64.AppImage</span>
 <span class="cmd">chmod</span> <span class="val">+x</span> model-repair-<span class="val">${VERSION}</span>-x86_64.AppImage
 
@@ -372,6 +377,21 @@
         The AppImage bundles Qt 6, libmodelrepair, and all dependencies. It runs on any x86-64 Linux with glibc ≥ 2.17.
         FUSE is <em>not</em> required — the AppImage self-extracts automatically.
         Download links for each release are on the <a href="https://github.com/Cracksoldier/3d-print-model-repair/releases" target="_blank" rel="noopener">GitHub Releases page</a>.
+      </p>
+    </div>
+
+    <div id="tab-windows" class="tab-panel">
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Download the ZIP from the Releases page and extract it</span>
+<span class="cmt"># https://github.com/Cracksoldier/3d-print-model-repair/releases/latest</span>
+
+<span class="cmt"># The extracted folder is self-contained — no installer, no PATH changes needed.</span>
+<span class="cmt"># Double-click model-repair-gui.exe to open the GUI.</span>
+<span class="cmt"># Run the CLI from a terminal:</span>
+model-repair.exe broken.stl repaired.stl <span class="flag">--verbose</span></pre>
+      <p style="font-size:0.875rem;color:var(--muted);">
+        The Windows ZIP bundles Qt 6, all MSYS2/UCRT64 runtime DLLs (GMP, MPFR, GCC runtime, libwinpthread),
+        and libmodelrepair — nothing to install. Extract anywhere and run.
+        Built with MinGW-w64 GCC via MSYS2 UCRT64. Requires 64-bit Windows 10 or later.
       </p>
     </div>
 
@@ -436,7 +456,7 @@
 <!-- Footer -->
 <footer>
   <div class="footer-inner">
-    <span>model-repair v0.1.0 — MIT License</span>
+    <span>model-repair v0.3.0 — MIT License</span>
     <div class="footer-links">
       <a href="documentation.html">Documentation</a>
       <a href="https://github.com/Cracksoldier/3d-print-model-repair" target="_blank" rel="noopener">GitHub</a>
