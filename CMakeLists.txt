@@ -23,6 +23,19 @@ configure_file(
 find_package(CGAL 5.6 REQUIRED COMPONENTS Core)
 find_package(Eigen3 REQUIRED NO_MODULE)
 
+# TBB is optional. When present it enables std::execution::par_unseq to use
+# multiple CPU cores (on GCC/libstdc++, par_unseq silently degrades to
+# sequential without TBB linked).
+option(MODELREPAIR_ENABLE_TBB "Use Intel TBB for parallel smoothing (optional)" ON)
+if(MODELREPAIR_ENABLE_TBB)
+    find_package(TBB QUIET)
+    if(TBB_FOUND)
+        message(STATUS "TBB found — parallel smoothing enabled")
+    else()
+        message(STATUS "TBB not found — smoothing will be sequential")
+    endif()
+endif()
+
 add_subdirectory(src)
 
 if(MODELREPAIR_BUILD_CLI)

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # System deps (Arch/CachyOS)
-sudo pacman -S cgal eigen3 boost gmp mpfr qt6-base
+sudo pacman -S cgal eigen3 boost gmp mpfr qt6-base onetbb
 
 # Configure — downloads lib3mf, CLI11, spdlog, Catch2, tinygltf via FetchContent
 cmake --preset debug      # Debug + AddressSanitizer
@@ -168,5 +168,7 @@ Each step file implements one private method of `RepairPipeline`. The order is a
 - **CGAL version**: this repo targets CGAL 6.x (installed as `cgal` on Arch). The API differs from CGAL 5.x in several ways: `merge_duplicate_points_in_polygon_soup` (not `merge_duplicated_vertices_in_polygon_soup`), `non_manifold_vertices` outputs `halfedge_descriptor` not `vertex_descriptor`.
 - **lib3mf GCC 16 patch**: `cmake/patch_lib3mf_gcc16.cmake` is applied via `PATCH_COMMAND` in `FetchContent_Declare` and handles three GCC 16 breakages: (1) adds `#include <algorithm>` to six C++ source files that relied on transitive inclusion; (2) adds `#include <cstdint>` to `NMR_ModelTriangleSet.h` which uses `uint32_t` without including it; (3) injects `#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"` into two Windows-only libzip C sources that assign Win32 typed function pointers into `void*` struct fields. The pragma approach is necessary because `target_compile_options()` applied after `FetchContent_MakeAvailable()` does not reliably reach files inside the fetched dependency's own build system.
 - **Windows portability — `M_PI`**: `M_PI` is a POSIX extension, not available in strict C++20 mode on Windows/MinGW. All uses in our code have been replaced with `std::numbers::pi` from `<numbers>` (C++20 standard library).
+- **TBB parallel smoothing**: `MODELREPAIR_ENABLE_TBB=ON` (default) enables multi-core smoothing. When TBB is found, `TBB::tbb` is linked to `modelrepair` and `MODELREPAIR_HAVE_TBB` is defined, activating `std::execution::par_unseq` in the cotangent Laplacian vertex loop (`src/repairs/Smooth.cpp`). Without TBB the code compiles and runs sequentially — no functionality is lost. CGAL 6.x's `isotropic_remeshing` has no parallel API; only the smoothing step benefits from this.
+- **CGAL `isotropic_remeshing` is sequential**: CGAL 6.1.1's implementation (`remesh_impl.h`) has no `Parallel_tag` hook, no TBB usage. All phases (splits, collapses, flips, relaxation) run on a single thread.
 - **Catch2 discovery**: `DISCOVERY_MODE PRE_TEST` is required because ASan makes the binary fail to start at CMake build-time (when Catch2 normally runs `--list-tests`).
 - **EGL / Wayland CoreProfile**: On Wayland with the NVIDIA proprietary driver (EGL backend), requesting an OpenGL CoreProfile or MSAA samples in `QSurfaceFormat` produces `EGL_BAD_ATTRIBUTE` (error 3009) and the `QOpenGLWidget` fails to create a context. `main.cpp` therefore requests only a 24-bit depth buffer — no profile, no MSAA. The OpenGL 3.3 GLSL shaders still work because the default EGL context provides 3.3+ compatibility.

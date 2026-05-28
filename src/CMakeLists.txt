@@ -43,6 +43,11 @@ target_link_libraries(modelrepair
         modelrepair_warnings
 )
 
+if(TBB_FOUND AND MODELREPAIR_ENABLE_TBB)
+    target_link_libraries(modelrepair PRIVATE TBB::tbb)
+    target_compile_definitions(modelrepair PRIVATE MODELREPAIR_HAVE_TBB)
+endif()
+
 set_target_properties(modelrepair PROPERTIES
     VERSION   ${PROJECT_VERSION}
     SOVERSION ${PROJECT_VERSION_MAJOR}
