@@ -36,6 +36,25 @@ if(MODELREPAIR_ENABLE_TBB)
     endif()
 endif()
 
+option(MODELREPAIR_ENABLE_VULKAN "Use Vulkan compute for GPU smoothing (optional)" ON)
+if(MODELREPAIR_ENABLE_VULKAN)
+    find_package(Vulkan QUIET)
+    if(Vulkan_FOUND)
+        find_program(GLSLC_EXECUTABLE glslc
+            HINTS ${Vulkan_GLSLC_EXECUTABLE}
+                  "$ENV{VULKAN_SDK}/bin"
+                  "$ENV{VULKAN_SDK}/Bin")
+        if(GLSLC_EXECUTABLE)
+            message(STATUS "Vulkan + glslc found — GPU smoothing available")
+        else()
+            message(STATUS "Vulkan found but glslc missing — GPU smoothing disabled")
+            set(Vulkan_FOUND FALSE)
+        endif()
+    else()
+        message(STATUS "Vulkan not found — GPU smoothing unavailable")
+    endif()
+endif()
+
 add_subdirectory(src)
 
 if(MODELREPAIR_BUILD_CLI)

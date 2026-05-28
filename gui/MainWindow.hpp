@@ -87,6 +87,7 @@ private:
     QCheckBox*      chk_smooth_;
     QSpinBox*       spn_smooth_iters_;
     QDoubleSpinBox* spn_smooth_crease_;
+    QCheckBox*      chk_smooth_vulkan_;
 
     // Decimation option widgets
     QCheckBox*      chk_decimate_;

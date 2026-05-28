@@ -3,6 +3,7 @@
 #include "MeshViewWidget.hpp"
 
 #include "modelrepair/RepairOptions.hpp"
+#include "modelrepair/Smooth.hpp"
 #include "modelrepair/io/MeshIO.hpp"
 
 #include <QCheckBox>
@@ -310,6 +311,7 @@ public:
         bool         do_smooth;
         unsigned int smooth_iters;
         double       crease_angle;
+        bool         use_vulkan;
     };
 
     Params collect_params() const
@@ -321,6 +323,7 @@ public:
             chk_smooth_->isChecked(),
             static_cast<unsigned int>(spin_smooth_iters_->value()),
             static_cast<double>(spin_crease_->value()),
+            chk_vulkan_ ? chk_vulkan_->isChecked() : false,
         };
     }
 
@@ -477,6 +480,18 @@ private:
             vb->addLayout(make_row("Crease angle (°):", spin_crease_));
             vb->addWidget(info_label("Edges with a dihedral angle above this value are treated as sharp features "
                                      "and protected from smoothing. 45° preserves most mechanical edges."));
+
+            const bool vk_ok = modelrepair::smooth_vulkan_available();
+            chk_vulkan_ = new QCheckBox("Use GPU (Vulkan)");
+            chk_vulkan_->setChecked(false);
+            chk_vulkan_->setEnabled(false);
+            if (!vk_ok)
+                chk_vulkan_->setToolTip("Vulkan compute is not available on this machine");
+            connect(chk_smooth_, &QCheckBox::toggled,
+                    chk_vulkan_, [this, vk_ok](bool on) {
+                        chk_vulkan_->setEnabled(on && vk_ok);
+                    });
+            vb->addWidget(chk_vulkan_);
         }
         vbox->addWidget(smooth_body);
         vbox->addStretch();
@@ -556,6 +571,7 @@ private:
     QSpinBox*       spin_smooth_iters_= nullptr;
     QDoubleSpinBox* spin_crease_      = nullptr;
     QLabel*         warn_smooth_      = nullptr;
+    QCheckBox*      chk_vulkan_       = nullptr;
 
     std::size_t face_count_   = 0;
     int         total_steps_  = 1;
@@ -922,7 +938,7 @@ void WizardWindow::on_phase2_run()
     page2_->show_running();
     auto* worker = new WizardWorker(current_mesh_,
         p.do_remesh, p.remesh_factor, p.remesh_iters,
-        p.do_smooth, p.smooth_iters, p.crease_angle);
+        p.do_smooth, p.smooth_iters, p.crease_angle, p.use_vulkan);
     start_worker_thread(worker);
 }
 

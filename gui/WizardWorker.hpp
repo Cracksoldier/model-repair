@@ -24,6 +24,7 @@ public:
     explicit WizardWorker(modelrepair::Mesh mesh,
                           bool do_remesh, double remesh_factor, unsigned int remesh_iters,
                           bool do_smooth, unsigned int smooth_iters, double crease_angle,
+                          bool use_vulkan = false,
                           QObject* parent = nullptr);
 
     // Phase 3 — decimate
@@ -47,6 +48,7 @@ private:
     bool         do_smooth_      = false;
     unsigned int smooth_iters_   = 3;
     double       crease_angle_   = 45.0;
+    bool         use_vulkan_     = false;
     double       decimate_ratio_ = 0.5;
 };
 

@@ -1,0 +1,41 @@
+#version 450
+layout(local_size_x = 256) in;
+
+layout(std430, binding = 0) readonly  buffer PosIn   { vec4 pos_in[];  };
+layout(std430, binding = 1) writeonly buffer PosOut  { vec4 pos_out[]; };
+layout(std430, binding = 2) readonly  buffer RowOff  { uint row_off[]; };
+layout(std430, binding = 3) readonly  buffer ColIdx  { uint col_idx[]; };
+layout(std430, binding = 4) readonly  buffer Weights { float wt[];     };
+
+layout(push_constant) uniform PC {
+    uint  vertex_count;
+    float lambda;
+};
+
+void main() {
+    uint vid = gl_GlobalInvocationID.x;
+    if (vid >= vertex_count) return;
+
+    uint start = row_off[vid];
+    uint end   = row_off[vid + 1];
+
+    if (start == end) {           // border vertex or isolated vertex — pass through
+        pos_out[vid] = pos_in[vid];
+        return;
+    }
+
+    vec4  wsum = vec4(0.0);
+    float wtot = 0.0;
+    for (uint k = start; k < end; ++k) {
+        float w = wt[k];
+        wsum += w * pos_in[col_idx[k]];
+        wtot += w;
+    }
+
+    if (wtot > 1e-12) {
+        vec4 avg = wsum / wtot;
+        pos_out[vid] = pos_in[vid] + lambda * (avg - pos_in[vid]);
+    } else {
+        pos_out[vid] = pos_in[vid];
+    }
+}

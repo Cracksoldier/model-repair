@@ -34,9 +34,10 @@ struct RepairOptions
     unsigned int remesh_iterations         = 3;
 
     // Post-repair smoothing
-    bool         smooth            = false;
-    unsigned int smooth_iterations = 3;    // angle-smoothing passes
-    double       smooth_crease_angle = 45.0; // degrees; edges sharper than this are preserved
+    bool         smooth              = false;
+    unsigned int smooth_iterations   = 3;     // Laplacian passes
+    double       smooth_crease_angle = 45.0;  // degrees; edges sharper than this are preserved
+    bool         smooth_use_vulkan   = false;  // GPU path; requires MODELREPAIR_HAVE_VULKAN
 
     // Post-repair decimation
     bool   decimate       = false;

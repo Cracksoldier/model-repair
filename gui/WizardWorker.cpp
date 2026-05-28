@@ -16,10 +16,12 @@ WizardWorker::WizardWorker(modelrepair::Mesh mesh, modelrepair::RepairOptions op
 WizardWorker::WizardWorker(modelrepair::Mesh mesh,
                             bool do_remesh, double remesh_factor, unsigned int remesh_iters,
                             bool do_smooth, unsigned int smooth_iters, double crease_angle,
+                            bool use_vulkan,
                             QObject* parent)
     : QObject(parent), phase_(Phase::RemeshSmooth), mesh_(std::move(mesh))
     , do_remesh_(do_remesh), remesh_factor_(remesh_factor), remesh_iters_(remesh_iters)
     , do_smooth_(do_smooth), smooth_iters_(smooth_iters), crease_angle_(crease_angle)
+    , use_vulkan_(use_vulkan)
 {}
 
 WizardWorker::WizardWorker(modelrepair::Mesh mesh, double decimate_ratio, QObject* parent)
@@ -90,7 +92,8 @@ void WizardWorker::run()
                         ++done;
                         emit progressChanged(done + 1, total,
                             QString("Smoothing %1/%2").arg(completed).arg(n));
-                    });
+                    },
+                    use_vulkan_);
                 modelrepair::StepReport sr;
                 sr.name       = "Smooth";
                 sr.was_run    = true;

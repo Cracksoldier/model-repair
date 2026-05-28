@@ -23,6 +23,7 @@
 #include <QWidget>
 
 #include "modelrepair/io/MeshIO.hpp"
+#include "modelrepair/Smooth.hpp"
 
 namespace gui
 {
@@ -160,6 +161,21 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
         grp_layout->addLayout(row);
         connect(chk_smooth_, &QCheckBox::toggled,
                 spn_smooth_crease_, &QDoubleSpinBox::setEnabled);
+    }
+    {
+        chk_smooth_vulkan_ = new QCheckBox("  Use GPU (Vulkan)");
+        chk_smooth_vulkan_->setChecked(false);
+        const bool vk_ok = modelrepair::smooth_vulkan_available();
+        chk_smooth_vulkan_->setEnabled(false);
+        if (!vk_ok) {
+            chk_smooth_vulkan_->setToolTip(
+                "Vulkan compute is not available on this machine");
+        }
+        connect(chk_smooth_, &QCheckBox::toggled,
+                chk_smooth_vulkan_, [this, vk_ok](bool on) {
+                    chk_smooth_vulkan_->setEnabled(on && vk_ok);
+                });
+        grp_layout->addWidget(chk_smooth_vulkan_);
     }
 
     // Decimation
@@ -302,9 +318,10 @@ modelrepair::RepairOptions MainWindow::collect_options() const
     o.remesh                    = chk_remesh_->isChecked();
     o.remesh_edge_length_factor = spin_remesh_factor_->value();
     o.remesh_iterations         = static_cast<unsigned int>(spn_remesh_iters_->value());
-    o.smooth             = chk_smooth_->isChecked();
-    o.smooth_iterations  = static_cast<unsigned int>(spn_smooth_iters_->value());
+    o.smooth              = chk_smooth_->isChecked();
+    o.smooth_iterations   = static_cast<unsigned int>(spn_smooth_iters_->value());
     o.smooth_crease_angle = spn_smooth_crease_->value();
+    o.smooth_use_vulkan   = chk_smooth_vulkan_->isChecked();
     o.decimate                    = chk_decimate_->isChecked();
     o.decimate_ratio              = spin_decimate_ratio_->value();
     return o;

@@ -48,6 +48,36 @@ if(TBB_FOUND AND MODELREPAIR_ENABLE_TBB)
     target_compile_definitions(modelrepair PRIVATE MODELREPAIR_HAVE_TBB)
 endif()
 
+if(Vulkan_FOUND AND MODELREPAIR_ENABLE_VULKAN)
+    target_link_libraries(modelrepair PRIVATE Vulkan::Vulkan)
+    target_compile_definitions(modelrepair PRIVATE MODELREPAIR_HAVE_VULKAN)
+    target_sources(modelrepair PRIVATE repairs/VulkanSmoothing.cpp)
+
+    set(SHADER_SRC ${CMAKE_CURRENT_SOURCE_DIR}/shaders/smooth_laplacian.comp)
+    set(SHADER_SPV ${CMAKE_CURRENT_BINARY_DIR}/smooth_laplacian.spv)
+    set(SHADER_HDR ${CMAKE_CURRENT_BINARY_DIR}/smooth_laplacian_spv.h)
+
+    add_custom_command(
+        OUTPUT  ${SHADER_SPV}
+        COMMAND ${GLSLC_EXECUTABLE} --target-env=vulkan1.0
+                -o ${SHADER_SPV} ${SHADER_SRC}
+        DEPENDS ${SHADER_SRC}
+        COMMENT "Compiling smooth_laplacian.comp → SPIR-V"
+    )
+    add_custom_command(
+        OUTPUT  ${SHADER_HDR}
+        COMMAND ${CMAKE_COMMAND}
+                -DINPUT_FILE=${SHADER_SPV}
+                -DOUTPUT_FILE=${SHADER_HDR}
+                -DARRAY_NAME=smooth_laplacian_spv
+                -P ${CMAKE_SOURCE_DIR}/cmake/EmbedSpv.cmake
+        DEPENDS ${SHADER_SPV}
+        COMMENT "Embedding SPIR-V into smooth_laplacian_spv.h"
+    )
+    target_sources(modelrepair PRIVATE ${SHADER_HDR})
+    target_include_directories(modelrepair PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+endif()
+
 set_target_properties(modelrepair PROPERTIES
     VERSION   ${PROJECT_VERSION}
     SOVERSION ${PROJECT_VERSION_MAJOR}

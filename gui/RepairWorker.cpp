@@ -167,7 +167,8 @@ void RepairWorker::run()
                     }
                     if (cancel_flag_->load(std::memory_order_relaxed))
                         throw CancelledException{};
-                });
+                },
+                opts_.smooth_use_vulkan);
         }
         catch (const CancelledException&)
         {
