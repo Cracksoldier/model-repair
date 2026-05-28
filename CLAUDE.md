@@ -69,9 +69,9 @@ build/debug/gui/model-repair-gui
 
 ## Release
 
-Releases are built as Linux AppImages via a manually triggered GitHub Actions workflow.
+Releases are built by two manually triggered GitHub Actions workflows — one for Linux (AppImage) and one for Windows (ZIP).
 
-### Workflow: `.github/workflows/appimage.yml`
+### Workflow: `.github/workflows/appimage.yml` (Linux)
 
 Trigger via **Actions → Build AppImage → Run workflow** with three inputs:
 
@@ -96,6 +96,24 @@ Trigger via **Actions → Build AppImage → Run workflow** with three inputs:
 - Custom libs are copied to `/usr/lib` rather than using `LD_LIBRARY_PATH`, because `LD_LIBRARY_PATH=AppDir/usr/lib` causes `qmake6` to load the rpath-patched Qt libs from AppDir and report wrong `QT_INSTALL_LIBS`, breaking `linuxdeploy-plugin-qt`
 - Version bump step runs `git config --global --add safe.directory "${GITHUB_WORKSPACE}"` first — Git 2.35.2+ rejects repos owned by a different UID (root vs runner) without this
 - The release is created as a **draft** — review and publish it manually on GitHub
+
+### Workflow: `.github/workflows/windows.yml` (Windows)
+
+Trigger via **Actions → Build Windows → Run workflow** with the same three inputs (`version`, `create_release`, `next_version`).
+
+**Workflow steps:**
+1. Sets up MSYS2 UCRT64 and installs all dependencies as prebuilt MSYS2 packages (CGAL, Eigen3, Qt6, GMP, MPFR, Boost, Ninja, GCC)
+2. Configures with `cmake -B build -G Ninja` (no preset — tests and ASan disabled)
+3. Builds with `cmake --build build`
+4. Bundles into `dist/model-repair/`: uses `find` to locate EXEs and `libmodelrepair.dll` (paths vary depending on `qt6_standard_project_setup()`), copies `lib3mf.dll`, runs `windeployqt6` for Qt DLLs, then scans all binaries with `ldd` to copy MSYS2 UCRT64 runtime DLLs
+5. Creates a ZIP with PowerShell `Compress-Archive`
+6. Uploads the ZIP as a workflow artifact; optionally creates a GitHub Release and bumps the version
+
+**Key implementation constraints:**
+- MSYS2 UCRT64 ships Eigen3 5.x; `find_package(Eigen3)` must not specify a version number (no `3.4` minimum) — `CMakeLists.txt` uses `find_package(Eigen3 REQUIRED NO_MODULE)` without a version
+- `qt6_standard_project_setup()` sets `CMAKE_RUNTIME_OUTPUT_DIRECTORY` to the top-level build directory, so all EXEs and the `libmodelrepair.dll` land in `build/` rather than `build/gui/`, `build/cli/`, `build/src/` — the bundle step uses `find` rather than hardcoded paths for this reason
+- lib3mf's bundled libzip has Windows-only sources (`zip_source_file_win32_ansi.c`, `zip_source_file_win32_utf16.c`) that assign Win32 function pointers into `void*` struct fields; GCC 16 treats `-Wincompatible-pointer-types` as an error — suppressed via `#pragma GCC diagnostic` injected by `cmake/patch_lib3mf_gcc16.cmake`
+- The CMake preset `windows-release` in `CMakePresets.json` mirrors what the workflow does and can be used for local Windows builds
 
 ## Architecture
 
@@ -148,6 +166,7 @@ Each step file implements one private method of `RepairPipeline`. The order is a
 ## Known quirks
 
 - **CGAL version**: this repo targets CGAL 6.x (installed as `cgal` on Arch). The API differs from CGAL 5.x in several ways: `merge_duplicate_points_in_polygon_soup` (not `merge_duplicated_vertices_in_polygon_soup`), `non_manifold_vertices` outputs `halfedge_descriptor` not `vertex_descriptor`.
-- **lib3mf GCC 16 patch**: `cmake/patch_lib3mf_gcc16.cmake` is applied via `PATCH_COMMAND` in `FetchContent_Declare` and adds `#include <algorithm>` to six lib3mf source files that GCC 16 requires it in explicitly.
+- **lib3mf GCC 16 patch**: `cmake/patch_lib3mf_gcc16.cmake` is applied via `PATCH_COMMAND` in `FetchContent_Declare` and handles three GCC 16 breakages: (1) adds `#include <algorithm>` to six C++ source files that relied on transitive inclusion; (2) adds `#include <cstdint>` to `NMR_ModelTriangleSet.h` which uses `uint32_t` without including it; (3) injects `#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"` into two Windows-only libzip C sources that assign Win32 typed function pointers into `void*` struct fields. The pragma approach is necessary because `target_compile_options()` applied after `FetchContent_MakeAvailable()` does not reliably reach files inside the fetched dependency's own build system.
+- **Windows portability — `M_PI`**: `M_PI` is a POSIX extension, not available in strict C++20 mode on Windows/MinGW. All uses in our code have been replaced with `std::numbers::pi` from `<numbers>` (C++20 standard library).
 - **Catch2 discovery**: `DISCOVERY_MODE PRE_TEST` is required because ASan makes the binary fail to start at CMake build-time (when Catch2 normally runs `--list-tests`).
 - **EGL / Wayland CoreProfile**: On Wayland with the NVIDIA proprietary driver (EGL backend), requesting an OpenGL CoreProfile or MSAA samples in `QSurfaceFormat` produces `EGL_BAD_ATTRIBUTE` (error 3009) and the `QOpenGLWidget` fails to create a context. `main.cpp` therefore requests only a 24-bit depth buffer — no profile, no MSAA. The OpenGL 3.3 GLSL shaders still work because the default EGL context provides 3.3+ compatibility.
