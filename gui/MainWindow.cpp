@@ -24,6 +24,7 @@
 
 #include "modelrepair/io/MeshIO.hpp"
 #include "modelrepair/Smooth.hpp"
+#include "modelrepair/ShellSeparation.hpp"
 
 namespace gui
 {
@@ -96,6 +97,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     }
     chk_smooth_fill_    = make_check("  Smooth fill (uncheck = flat fan)");
     chk_self_intersect_ = make_check("Remove self-intersections (very slow — avoid on large meshes)", false);
+    chk_remove_internal_ = make_check("Remove internal geometry (faces hidden inside the mesh)", false);
 
     // Remeshing
     chk_remesh_ = make_check("Remesh (isotropic) before smoothing [experimental]", false);
@@ -217,8 +219,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     btn_row->addWidget(btn_cancel_);
     btn_row->addWidget(btn_save_);
     btn_batch_ = new QPushButton("Batch Repair…");
+    btn_shells_ = new QPushButton("Separate Shells…");
+    btn_shells_->setEnabled(false);
     btn_row->addWidget(btn_batch_);
     btn_row->addWidget(btn_wizard_);
+    btn_row->addWidget(btn_shells_);
     root->addLayout(btn_row);
 
     connect(btn_repair_,   &QPushButton::clicked, this, &MainWindow::on_repair_clicked);
@@ -243,10 +248,112 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
         connect(wizard_, &QObject::destroyed, this, [this] { wizard_ = nullptr; });
         wizard_->show();
     });
+    connect(btn_shells_, &QPushButton::clicked, this, [this]
+    {
+        // Determine which mesh to analyse: repaired (if available) or the loaded original
+        const modelrepair::Mesh* src_mesh = nullptr;
+        if (repaired_mesh_)
+            src_mesh = &*repaired_mesh_;
+        else if (before_mesh_)
+            src_mesh = &*before_mesh_;
+        else {
+            // Load from disk for analysis (read-only, no repair)
+            try {
+                modelrepair::Mesh m = modelrepair::io::load(*input_path_);
+                before_mesh_ = std::move(m);
+                src_mesh = &*before_mesh_;
+            } catch (const std::exception& e) {
+                QMessageBox::critical(this, "Error", e.what());
+                return;
+            }
+        }
+
+        auto info = modelrepair::analyze_shells(*src_mesh);
+        const std::size_t n = info.components_found;
+
+        if (n == 0) {
+            QMessageBox::information(this, "Shell Separation", "No faces found in mesh.");
+            return;
+        }
+        if (n == 1) {
+            QMessageBox::information(this, "Shell Separation",
+                QString("The mesh is a single shell (%1 faces).").arg(src_mesh->num_faces()));
+            return;
+        }
+
+        const std::size_t largest = info.shells.empty() ? 0 : info.shells[0].face_count;
+        const double pct = src_mesh->num_faces() > 0
+            ? 100.0 * largest / src_mesh->num_faces() : 0.0;
+
+        auto* dlg = new QDialog(this);
+        dlg->setWindowTitle("Separate Shells");
+        auto* vb = new QVBoxLayout(dlg);
+        vb->addWidget(new QLabel(
+            QString("%1 disconnected shells detected.\nLargest: %2 faces (%3%).")
+                .arg(n).arg(largest).arg(pct, 0, 'f', 1)));
+
+        auto* btn_keep = new QPushButton("Keep Largest Shell");
+        auto* btn_export = new QPushButton("Export All Shells…");
+        auto* btn_dlg_close = new QPushButton("Cancel");
+        auto* row = new QHBoxLayout;
+        row->addWidget(btn_keep);
+        row->addWidget(btn_export);
+        row->addWidget(btn_dlg_close);
+        vb->addLayout(row);
+
+        connect(btn_dlg_close, &QPushButton::clicked, dlg, &QDialog::reject);
+
+        connect(btn_keep, &QPushButton::clicked, dlg, [this, dlg, src_mesh]
+        {
+            if (repaired_mesh_) {
+                modelrepair::keep_shells(*repaired_mesh_, 1);
+                status_label_->setText("Kept largest shell — mesh updated.");
+            } else {
+                modelrepair::Mesh m = *src_mesh;
+                modelrepair::keep_shells(m, 1);
+                repaired_mesh_ = std::move(m);
+                before_mesh_   = *src_mesh;
+                btn_save_->setEnabled(true);
+                status_label_->setText("Kept largest shell — ready to save.");
+            }
+            dlg->accept();
+        });
+
+        connect(btn_export, &QPushButton::clicked, dlg, [this, dlg, src_mesh]
+        {
+            QString folder = QFileDialog::getExistingDirectory(
+                this, "Export shells to folder");
+            if (folder.isEmpty())
+                return;
+
+            const std::filesystem::path out_dir(folder.toStdString());
+            const std::string ext = input_path_
+                ? input_path_->extension().string() : ".stl";
+            const std::string stem = input_path_
+                ? input_path_->stem().string() : "shell";
+
+            auto shells = modelrepair::split_shells(*src_mesh);
+            int saved = 0;
+            try {
+                for (std::size_t i = 0; i < shells.size(); ++i) {
+                    auto path = out_dir / (stem + "_shell_" + std::to_string(i) + ext);
+                    modelrepair::io::save(shells[i], path);
+                    ++saved;
+                }
+            } catch (const std::exception& e) {
+                QMessageBox::critical(this, "Export failed", e.what());
+            }
+            status_label_->setText(QString("Exported %1 shells to %2").arg(saved).arg(folder));
+            dlg->accept();
+        });
+
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        dlg->exec();
+    });
 
     // --- Progress ---
     progress_bar_ = new QProgressBar;
-    progress_bar_->setRange(0, 6);
+    progress_bar_->setRange(0, 7);
     progress_bar_->setTextVisible(true);
     progress_bar_->setValue(0);
     root->addWidget(progress_bar_);
@@ -296,6 +403,7 @@ void MainWindow::set_input(const std::filesystem::path& path)
     btn_repair_->setEnabled(true);
     btn_diagnose_->setEnabled(true);
     btn_wizard_->setEnabled(true);
+    btn_shells_->setEnabled(true);
     btn_save_->setEnabled(false);
     report_view_->clear();
     drop_label_->setText(QString::fromStdString(path.filename().string()));
@@ -315,6 +423,7 @@ modelrepair::RepairOptions MainWindow::collect_options() const
     o.max_hole_edges              = static_cast<std::size_t>(spin_max_hole_edges_->value());
     o.fill_holes_smooth           = chk_smooth_fill_->isChecked();
     o.remove_self_intersections   = chk_self_intersect_->isChecked();
+    o.remove_internal_geometry    = chk_remove_internal_->isChecked();
     o.remesh                    = chk_remesh_->isChecked();
     o.remesh_edge_length_factor = spin_remesh_factor_->value();
     o.remesh_iterations         = static_cast<unsigned int>(spn_remesh_iters_->value());
@@ -469,8 +578,8 @@ void MainWindow::on_repair_cancelled(modelrepair::Mesh partial_mesh, int pipelin
     }
 
     QString msg;
-    if (pipeline_steps_completed < 6) {
-        msg = QString("Repair was cancelled after %1 of 6 pipeline steps.\n"
+    if (pipeline_steps_completed < 7) {
+        msg = QString("Repair was cancelled after %1 of 7 pipeline steps.\n"
                       "Save the partial result?").arg(pipeline_steps_completed);
     } else {
         msg = "Post-processing was cancelled. Repair itself completed successfully.\n"
@@ -482,16 +591,16 @@ void MainWindow::on_repair_cancelled(modelrepair::Mesh partial_mesh, int pipelin
     if (ret == QMessageBox::Yes) {
         repaired_mesh_ = std::move(partial_mesh);
         btn_save_->setEnabled(true);
-        if (pipeline_steps_completed < 6)
+        if (pipeline_steps_completed < 7)
             status_label_->setText(
-                QString("Cancelled after %1/6 repair steps — partial result ready to save.")
+                QString("Cancelled after %1/7 repair steps — partial result ready to save.")
                     .arg(pipeline_steps_completed));
         else
             status_label_->setText("Repair complete; post-processing cancelled — result ready to save.");
     } else {
-        if (pipeline_steps_completed < 6)
+        if (pipeline_steps_completed < 7)
             status_label_->setText(
-                QString("Cancelled after %1/6 repair steps.").arg(pipeline_steps_completed));
+                QString("Cancelled after %1/7 repair steps.").arg(pipeline_steps_completed));
         else
             status_label_->setText("Repair complete; post-processing cancelled.");
     }
@@ -507,6 +616,7 @@ void MainWindow::set_busy(bool busy)
     btn_open_->setEnabled(!busy);
     btn_batch_->setEnabled(!busy);
     btn_wizard_->setEnabled(!busy && input_path_.has_value());
+    btn_shells_->setEnabled(!busy && input_path_.has_value());
     drop_label_->setEnabled(!busy);
     opts_group_->setEnabled(!busy);
 

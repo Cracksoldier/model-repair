@@ -44,7 +44,7 @@ void RepairWorker::run()
     const int post_steps = (opts_.remesh   && do_post ? static_cast<int>(opts_.remesh_iterations) : 0)
                          + (opts_.smooth   && do_post ? static_cast<int>(opts_.smooth_iterations) : 0)
                          + (opts_.decimate && do_post ? 1 : 0);
-    constexpr int pipeline_total = 6;
+    constexpr int pipeline_total = 7;
     const int grand_total = pipeline_total + post_steps;
 
     modelrepair::RepairPipeline pipeline(opts_);
@@ -69,7 +69,7 @@ void RepairWorker::run()
     try
     {
         report = pipeline.run(mesh);
-        steps_completed = 6;
+        steps_completed = pipeline_total;
     }
     catch (const CancelledException&)
     {
@@ -83,7 +83,7 @@ void RepairWorker::run()
     }
 
     if (cancel_flag_->load(std::memory_order_relaxed)) {
-        emit cancelled(std::move(mesh), 6);
+        emit cancelled(std::move(mesh), pipeline_total);
         return;
     }
 
@@ -93,7 +93,7 @@ void RepairWorker::run()
     if (opts_.remesh && !report.diagnose_only)
     {
         if (cancel_flag_->load(std::memory_order_relaxed)) {
-            emit cancelled(std::move(mesh), 6);
+            emit cancelled(std::move(mesh), pipeline_total);
             return;
         }
         const unsigned int total_iters = opts_.remesh_iterations;
@@ -128,7 +128,7 @@ void RepairWorker::run()
             return;
         }
         if (remesh_cancelled) {
-            emit cancelled(std::move(mesh), 6);
+            emit cancelled(std::move(mesh), pipeline_total);
             return;
         }
         post_step += static_cast<int>(total_iters);
@@ -148,7 +148,7 @@ void RepairWorker::run()
     if (opts_.smooth && !report.diagnose_only)
     {
         if (cancel_flag_->load(std::memory_order_relaxed)) {
-            emit cancelled(std::move(mesh), 6);
+            emit cancelled(std::move(mesh), pipeline_total);
             return;
         }
         const unsigned int total_iters = opts_.smooth_iterations;
@@ -180,7 +180,7 @@ void RepairWorker::run()
             return;
         }
         if (smooth_cancelled) {
-            emit cancelled(std::move(mesh), 6);
+            emit cancelled(std::move(mesh), pipeline_total);
             return;
         }
         post_step += static_cast<int>(total_iters);
@@ -199,7 +199,7 @@ void RepairWorker::run()
     if (opts_.decimate && !report.diagnose_only)
     {
         if (cancel_flag_->load(std::memory_order_relaxed)) {
-            emit cancelled(std::move(mesh), 6);
+            emit cancelled(std::move(mesh), pipeline_total);
             return;
         }
         emit progressChanged(++post_step, grand_total, "Decimating");

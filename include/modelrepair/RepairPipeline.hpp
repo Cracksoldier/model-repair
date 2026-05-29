@@ -30,6 +30,7 @@ private:
     StepReport step_fix_normals(Mesh& mesh);
     StepReport step_fill_holes(Mesh& mesh);
     StepReport step_remove_self_intersections(Mesh& mesh);
+    StepReport step_remove_internal_geometry(Mesh& mesh);
 
     void notify(int step, int total, const std::string& name);
 };

@@ -3,6 +3,7 @@
 #include "modelrepair/Decimate.hpp"
 #include "modelrepair/Remesh.hpp"
 #include "modelrepair/Smooth.hpp"
+#include "modelrepair/Subdivide.hpp"
 #include "modelrepair/RepairPipeline.hpp"
 
 namespace { struct WizardCancelled {}; }
@@ -19,11 +20,14 @@ WizardWorker::WizardWorker(modelrepair::Mesh mesh,
                             bool do_remesh, double remesh_factor, unsigned int remesh_iters,
                             bool do_smooth, unsigned int smooth_iters, double crease_angle,
                             bool use_vulkan,
+                            bool do_subdivide, int subdivide_method, unsigned int subdivide_iters,
                             QObject* parent)
     : QObject(parent), phase_(Phase::RemeshSmooth), mesh_(std::move(mesh))
     , do_remesh_(do_remesh), remesh_factor_(remesh_factor), remesh_iters_(remesh_iters)
     , do_smooth_(do_smooth), smooth_iters_(smooth_iters), crease_angle_(crease_angle)
     , use_vulkan_(use_vulkan)
+    , do_subdivide_(do_subdivide), subdivide_method_(subdivide_method)
+    , subdivide_iters_(subdivide_iters)
 {}
 
 WizardWorker::WizardWorker(modelrepair::Mesh mesh, double decimate_ratio, QObject* parent)
@@ -56,8 +60,9 @@ void WizardWorker::run()
     }
     else if (phase_ == Phase::RemeshSmooth)
     {
-        const int total = (do_remesh_ ? static_cast<int>(remesh_iters_) : 0)
-                        + (do_smooth_ ? static_cast<int>(smooth_iters_)  : 0);
+        const int total = (do_remesh_   ? static_cast<int>(remesh_iters_)   : 0)
+                        + (do_smooth_   ? static_cast<int>(smooth_iters_)   : 0)
+                        + (do_subdivide_ ? 1 : 0);
         int done = 0;
 
         try {
@@ -106,6 +111,24 @@ void WizardWorker::run()
                     report.steps.push_back(sr);
                 } catch (const std::exception& e) {
                     emit finished(std::move(mesh_), {}, QString("Smoothing failed: ") + e.what());
+                    return;
+                }
+            }
+            if (do_subdivide_) {
+                emit progressChanged(done + 1, total, "Subdividing");
+                try {
+                    auto method = (subdivide_method_ == 1)
+                        ? modelrepair::SubdivisionMethod::CatmullClark
+                        : modelrepair::SubdivisionMethod::Loop;
+                    auto sr_sub = modelrepair::subdivide(mesh_, subdivide_iters_, method);
+                    modelrepair::StepReport sr;
+                    sr.name       = "Subdivide";
+                    sr.was_run    = true;
+                    sr.duration_ms = sr_sub.duration_ms;
+                    report.steps.push_back(sr);
+                    ++done;
+                } catch (const std::exception& e) {
+                    emit finished(std::move(mesh_), {}, QString("Subdivision failed: ") + e.what());
                     return;
                 }
             }

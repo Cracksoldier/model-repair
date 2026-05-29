@@ -11,6 +11,7 @@
 #include <QVector3D>
 #include <QPointF>
 #include <memory>
+#include <vector>
 
 namespace gui
 {
@@ -34,6 +35,9 @@ public:
     ~MeshViewWidget() override;
 
     void set_peer(MeshViewWidget* peer);
+
+    enum class DisplayMode { Normal, WallThickness, Overhang };
+    void set_display_mode(DisplayMode mode, const std::vector<float>& per_face_scalars = {});
 
 signals:
     void camera_changed();
@@ -66,11 +70,15 @@ private:
     bool    drag_left_  = false;
     bool    drag_right_ = false;
 
-    int u_mvp_        = -1;
-    int u_model_      = -1;
-    int u_normal_mat_ = -1;
-    int u_light_dir_  = -1;
-    int u_color_      = -1;
+    DisplayMode         display_mode_     = DisplayMode::Normal;
+    std::vector<float>  per_face_scalars_;
+
+    int u_mvp_          = -1;
+    int u_model_        = -1;
+    int u_normal_mat_   = -1;
+    int u_light_dir_    = -1;
+    int u_color_        = -1;
+    int u_display_mode_ = -1;
 };
 
 } // namespace gui

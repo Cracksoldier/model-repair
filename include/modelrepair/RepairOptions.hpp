@@ -28,6 +28,9 @@ struct RepairOptions
     // Step 6 — self-intersections (very slow on large meshes; uses EPECK kernel internally)
     bool   remove_self_intersections   = false;
 
+    // Step 7 — internal geometry (faces whose centroid is inside the closed mesh)
+    bool   remove_internal_geometry    = false;
+
     // Post-repair remeshing (run before smooth; introduces new geometry)
     bool         remesh                    = false;
     double       remesh_edge_length_factor = 0.8;

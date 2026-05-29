@@ -77,6 +77,7 @@ private:
     QSpinBox*     spin_max_hole_edges_;
     QCheckBox*    chk_smooth_fill_;
     QCheckBox*    chk_self_intersect_;
+    QCheckBox*    chk_remove_internal_;
 
     // Remesh option widgets
     QCheckBox*      chk_remesh_;
@@ -101,6 +102,7 @@ private:
     QPushButton* btn_open_;
     QPushButton* btn_batch_;
     QPushButton* btn_wizard_;
+    QPushButton* btn_shells_;
 
     // Results
     ReportView* report_view_;

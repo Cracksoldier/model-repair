@@ -23,11 +23,12 @@ public:
     explicit WizardWorker(modelrepair::Mesh mesh, modelrepair::RepairOptions opts,
                           QObject* parent = nullptr);
 
-    // Phase 2 — remesh and/or smooth
+    // Phase 2 — remesh and/or smooth and/or subdivide
     explicit WizardWorker(modelrepair::Mesh mesh,
                           bool do_remesh, double remesh_factor, unsigned int remesh_iters,
                           bool do_smooth, unsigned int smooth_iters, double crease_angle,
-                          bool use_vulkan = false,
+                          bool use_vulkan,
+                          bool do_subdivide, int subdivide_method, unsigned int subdivide_iters,
                           QObject* parent = nullptr);
 
     // Phase 3 — decimate
@@ -45,14 +46,17 @@ private:
     Phase                      phase_;
     modelrepair::Mesh          mesh_;
     modelrepair::RepairOptions opts_;
-    bool         do_remesh_      = false;
-    double       remesh_factor_  = 0.8;
-    unsigned int remesh_iters_   = 3;
-    bool         do_smooth_      = false;
-    unsigned int smooth_iters_   = 3;
-    double       crease_angle_   = 45.0;
-    bool         use_vulkan_     = false;
-    double       decimate_ratio_ = 0.5;
+    bool         do_remesh_        = false;
+    double       remesh_factor_    = 0.8;
+    unsigned int remesh_iters_     = 3;
+    bool         do_smooth_        = false;
+    unsigned int smooth_iters_     = 3;
+    double       crease_angle_     = 45.0;
+    bool         use_vulkan_       = false;
+    bool         do_subdivide_     = false;
+    int          subdivide_method_ = 0;   // 0=Loop, 1=CatmullClark
+    unsigned int subdivide_iters_  = 1;
+    double       decimate_ratio_   = 0.5;
 
     std::shared_ptr<std::atomic<bool>> cancel_flag_;
 

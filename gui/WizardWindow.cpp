@@ -7,6 +7,7 @@
 #include "modelrepair/io/MeshIO.hpp"
 
 #include <QCheckBox>
+#include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QFileDialog>
 #include <QGroupBox>
@@ -320,6 +321,9 @@ public:
         unsigned int smooth_iters;
         double       crease_angle;
         bool         use_vulkan;
+        bool         do_subdivide;
+        int          subdivide_method;  // 0=Loop, 1=CatmullClark
+        unsigned int subdivide_iters;
     };
 
     Params collect_params() const
@@ -332,6 +336,9 @@ public:
             static_cast<unsigned int>(spin_smooth_iters_->value()),
             static_cast<double>(spin_crease_->value()),
             chk_vulkan_ ? chk_vulkan_->isChecked() : false,
+            chk_subdivide_->isChecked(),
+            combo_subdiv_method_->currentIndex(),
+            static_cast<unsigned int>(spin_subdiv_iters_->value()),
         };
     }
 
@@ -339,8 +346,9 @@ public:
 
     void show_running()
     {
-        total_steps_ = (chk_remesh_->isChecked() ? spin_remesh_iters_->value() : 0)
-                     + (chk_smooth_->isChecked() ? spin_smooth_iters_->value()  : 0);
+        total_steps_ = (chk_remesh_->isChecked()    ? spin_remesh_iters_->value() : 0)
+                     + (chk_smooth_->isChecked()    ? spin_smooth_iters_->value() : 0)
+                     + (chk_subdivide_->isChecked() ? 1 : 0);
         progress_->setRange(0, total_steps_);
         progress_->setValue(0);
         inner_->setCurrentIndex(1);
@@ -381,6 +389,14 @@ private:
         warn_fine_->setVisible(fine);
         warn_large_->setVisible(remesh_on && !fine && face_count_ > 200'000);
         warn_smooth_->setVisible(chk_smooth_->isChecked() && spin_smooth_iters_->value() > 10);
+
+        if (chk_subdivide_ && spin_subdiv_iters_ && warn_subdiv_) {
+            const long long iters = spin_subdiv_iters_->value();
+            long long factor = 1;
+            for (int i = 0; i < iters; ++i) factor *= 4;
+            warn_subdiv_->setVisible(
+                chk_subdivide_->isChecked() && face_count_ * factor > 2'000'000);
+        }
     }
 
     QWidget* build_options()
@@ -520,6 +536,59 @@ private:
             vb->addWidget(chk_vulkan_);
         }
         vbox->addWidget(smooth_body);
+
+        vbox->addSpacing(8);
+
+        // ── Subdivide ────────────────────────────────────────────────────────
+        chk_subdivide_ = new QCheckBox("Subdivision (Loop / Catmull-Clark) [experimental]");
+        chk_subdivide_->setChecked(false);
+        vbox->addWidget(chk_subdivide_);
+        vbox->addWidget(info_label(
+            "Smoothly increases triangle count via subdivision. "
+            "Use instead of remesh+smooth on low-poly or CAD-derived models."));
+
+        auto* subdiv_body = new QWidget;
+        subdiv_body->setVisible(false);
+        connect(chk_subdivide_, &QCheckBox::toggled, subdiv_body, &QWidget::setVisible);
+        connect(chk_subdivide_, &QCheckBox::toggled, this, [this](bool) { update_warnings(); });
+        {
+            auto* vb = new QVBoxLayout(subdiv_body);
+            vb->setContentsMargins(22, 0, 0, 0);
+            vb->setSpacing(2);
+
+            auto make_row2 = [&](const QString& lbl_text, QWidget* ctrl) -> QHBoxLayout*
+            {
+                auto* row = new QHBoxLayout;
+                row->addWidget(new QLabel(lbl_text));
+                row->addWidget(ctrl);
+                row->addStretch();
+                return row;
+            };
+
+            combo_subdiv_method_ = new QComboBox;
+            combo_subdiv_method_->addItem("Loop (triangles)");
+            combo_subdiv_method_->addItem("Catmull-Clark (general)");
+            vb->addLayout(make_row2("Method:", combo_subdiv_method_));
+            vb->addWidget(info_label("Loop is ideal for pure triangle meshes. "
+                                     "Catmull-Clark handles mixed/quad meshes."));
+
+            spin_subdiv_iters_ = new QSpinBox;
+            spin_subdiv_iters_->setRange(1, 4);
+            spin_subdiv_iters_->setValue(1);
+            connect(spin_subdiv_iters_, &QSpinBox::valueChanged,
+                    this, [this](int) { update_warnings(); });
+            vb->addLayout(make_row2("Iterations:", spin_subdiv_iters_));
+            vb->addWidget(info_label("Face count grows ~4× per iteration. "
+                                     "1–2 iterations is typical."));
+
+            warn_subdiv_ = warn_label(
+                "⚠ This many iterations will produce a very large mesh — "
+                "expect long runtimes and high memory use.");
+            warn_subdiv_->setVisible(false);
+            vb->addWidget(warn_subdiv_);
+        }
+        vbox->addWidget(subdiv_body);
+
         vbox->addStretch();
 
         auto* btn_row = new QHBoxLayout;
@@ -603,6 +672,11 @@ private:
     QDoubleSpinBox* spin_crease_      = nullptr;
     QLabel*         warn_smooth_      = nullptr;
     QCheckBox*      chk_vulkan_       = nullptr;
+
+    QCheckBox* chk_subdivide_       = nullptr;
+    QComboBox* combo_subdiv_method_ = nullptr;
+    QSpinBox*  spin_subdiv_iters_   = nullptr;
+    QLabel*    warn_subdiv_         = nullptr;
 
     std::size_t face_count_   = 0;
     int         total_steps_  = 1;
@@ -1015,16 +1089,17 @@ void WizardWindow::on_phase1_finish()   { try_save_and_accept(); }
 void WizardWindow::on_phase2_run()
 {
     const auto p = page2_->collect_params();
-    if (!p.do_remesh && !p.do_smooth) {
+    if (!p.do_remesh && !p.do_smooth && !p.do_subdivide) {
         QMessageBox::information(this, "Nothing selected",
-            "Enable at least one of Remesh or Smooth, or click Skip.");
+            "Enable at least one of Remesh, Smooth, or Subdivide, or click Skip.");
         return;
     }
     phase_start_mesh_ = current_mesh_;
     page2_->show_running();
     auto* worker = new WizardWorker(current_mesh_,
         p.do_remesh, p.remesh_factor, p.remesh_iters,
-        p.do_smooth, p.smooth_iters, p.crease_angle, p.use_vulkan);
+        p.do_smooth, p.smooth_iters, p.crease_angle, p.use_vulkan,
+        p.do_subdivide, p.subdivide_method, p.subdivide_iters);
     start_worker_thread(worker);
 }
 

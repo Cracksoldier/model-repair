@@ -11,6 +11,11 @@ add_library(modelrepair SHARED
     repairs/Decimate.cpp
     repairs/Remesh.cpp
     repairs/Smooth.cpp
+    repairs/ShellSeparation.cpp
+    repairs/RemoveInternalGeometry.cpp
+    repairs/RemoveInternalGeometryStep.cpp
+    repairs/Subdivide.cpp
+    analysis/WallThickness.cpp
     io/StlIO.cpp
     io/ObjIO.cpp
     io/ThreeMFIO.cpp

@@ -49,7 +49,7 @@ RepairReport RepairPipeline::run(Mesh& mesh)
     if (opts_.diagnose_only) working_copy = mesh;
     Mesh& work = opts_.diagnose_only ? working_copy : mesh;
 
-    constexpr int total_steps = 6;
+    constexpr int total_steps = 7;
     int step = 0;
 
     auto run_step = [&](const std::string& name, auto fn, bool enabled) -> StepReport
@@ -76,6 +76,7 @@ RepairReport RepairPipeline::run(Mesh& mesh)
     report.steps.push_back(run_step("Fix face normals",            [&] { return step_fix_normals(work); },               opts_.fix_normals));
     report.steps.push_back(run_step("Fill holes",                  [&] { return step_fill_holes(work); },                opts_.fill_holes));
     report.steps.push_back(run_step("Remove self-intersections",   [&] { return step_remove_self_intersections(work); }, opts_.remove_self_intersections));
+    report.steps.push_back(run_step("Remove internal geometry",    [&] { return step_remove_internal_geometry(work); },  opts_.remove_internal_geometry));
 
     // Capture after-state
     report.vertices_after      = work.num_vertices();
