@@ -166,10 +166,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
         chk_smooth_vulkan_ = new QCheckBox("  Use GPU (Vulkan)");
         chk_smooth_vulkan_->setChecked(false);
         const bool vk_ok = modelrepair::smooth_vulkan_available();
-        chk_smooth_vulkan_->setEnabled(false);
         if (!vk_ok) {
-            chk_smooth_vulkan_->setToolTip(
-                "Vulkan compute is not available on this machine");
+            chk_smooth_vulkan_->setVisible(false);
+        } else {
+            chk_smooth_vulkan_->setEnabled(chk_smooth_->isChecked());
         }
         connect(chk_smooth_, &QCheckBox::toggled,
                 chk_smooth_vulkan_, [this, vk_ok](bool on) {

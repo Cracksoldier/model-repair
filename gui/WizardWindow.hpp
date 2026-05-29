@@ -4,13 +4,18 @@
 #include "modelrepair/RepairReport.hpp"
 
 #include <QDialog>
+#include <QElapsedTimer>
 #include <filesystem>
+
+#include <atomic>
+#include <memory>
 
 class QCloseEvent;
 class QLabel;
 class QPushButton;
 class QStackedWidget;
 class QThread;
+class QTimer;
 
 namespace gui
 {
@@ -33,6 +38,8 @@ private slots:
     void on_progress(int step, int total, const QString& name);
     void on_worker_finished(modelrepair::Mesh result, modelrepair::RepairReport report,
                             QString error);
+    void on_cancel_clicked();
+    void on_elapsed_tick();
     // Navigation from phase pages
     void on_phase1_run();
     void on_phase1_continue();
@@ -66,6 +73,12 @@ private:
 
     QThread* worker_thread_ = nullptr;
     int      current_phase_ = 1;    // 1, 2, or 3
+
+    std::shared_ptr<std::atomic<bool>> cancel_flag_;
+
+    QTimer*       elapsed_timer_ = nullptr;
+    QElapsedTimer elapsed_clock_;
+    QElapsedTimer step_clock_;
 };
 
 } // namespace gui

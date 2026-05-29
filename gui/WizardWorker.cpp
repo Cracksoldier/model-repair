@@ -5,6 +5,8 @@
 #include "modelrepair/Smooth.hpp"
 #include "modelrepair/RepairPipeline.hpp"
 
+namespace { struct WizardCancelled {}; }
+
 namespace gui
 {
 
@@ -58,51 +60,58 @@ void WizardWorker::run()
                         + (do_smooth_ ? static_cast<int>(smooth_iters_)  : 0);
         int done = 0;
 
-        if (do_remesh_) {
-            emit progressChanged(done + 1, total,
-                QString("Remeshing 1/%1").arg(remesh_iters_));
-            try {
-                auto rr = modelrepair::remesh(
-                    mesh_, remesh_factor_, remesh_iters_, crease_angle_,
-                    [this, &done, total, n = remesh_iters_](unsigned int completed) {
-                        ++done;
-                        emit progressChanged(done + 1, total,
-                            QString("Remeshing %1/%2").arg(completed).arg(n));
-                    });
-                modelrepair::StepReport sr;
-                sr.name        = "Remesh";
-                sr.was_run     = true;
-                sr.issues_fixed = rr.faces_after >= rr.faces_before
-                    ? rr.faces_after - rr.faces_before : 0;
-                sr.duration_ms = rr.duration_ms;
-                report.steps.push_back(sr);
-            } catch (const std::exception& e) {
-                emit finished(std::move(mesh_), {}, QString("Remeshing failed: ") + e.what());
-                return;
+        try {
+            if (do_remesh_) {
+                emit progressChanged(done + 1, total,
+                    QString("Remeshing 1/%1").arg(remesh_iters_));
+                try {
+                    auto rr = modelrepair::remesh(
+                        mesh_, remesh_factor_, remesh_iters_, crease_angle_,
+                        [this, &done, total, n = remesh_iters_](unsigned int completed) {
+                            if (cancel_flag_ && cancel_flag_->load()) throw WizardCancelled{};
+                            ++done;
+                            emit progressChanged(done + 1, total,
+                                QString("Remeshing %1/%2").arg(completed).arg(n));
+                        });
+                    modelrepair::StepReport sr;
+                    sr.name        = "Remesh";
+                    sr.was_run     = true;
+                    sr.issues_fixed = rr.faces_after >= rr.faces_before
+                        ? rr.faces_after - rr.faces_before : 0;
+                    sr.duration_ms = rr.duration_ms;
+                    report.steps.push_back(sr);
+                } catch (const std::exception& e) {
+                    emit finished(std::move(mesh_), {}, QString("Remeshing failed: ") + e.what());
+                    return;
+                }
             }
-        }
 
-        if (do_smooth_) {
-            emit progressChanged(done + 1, total,
-                QString("Smoothing 1/%1").arg(smooth_iters_));
-            try {
-                auto smr = modelrepair::smooth(
-                    mesh_, smooth_iters_, crease_angle_,
-                    [this, &done, total, n = smooth_iters_](unsigned int completed) {
-                        ++done;
-                        emit progressChanged(done + 1, total,
-                            QString("Smoothing %1/%2").arg(completed).arg(n));
-                    },
-                    use_vulkan_);
-                modelrepair::StepReport sr;
-                sr.name       = "Smooth";
-                sr.was_run    = true;
-                sr.duration_ms = smr.duration_ms;
-                report.steps.push_back(sr);
-            } catch (const std::exception& e) {
-                emit finished(std::move(mesh_), {}, QString("Smoothing failed: ") + e.what());
-                return;
+            if (do_smooth_) {
+                emit progressChanged(done + 1, total,
+                    QString("Smoothing 1/%1").arg(smooth_iters_));
+                try {
+                    auto smr = modelrepair::smooth(
+                        mesh_, smooth_iters_, crease_angle_,
+                        [this, &done, total, n = smooth_iters_](unsigned int completed) {
+                            if (cancel_flag_ && cancel_flag_->load()) throw WizardCancelled{};
+                            ++done;
+                            emit progressChanged(done + 1, total,
+                                QString("Smoothing %1/%2").arg(completed).arg(n));
+                        },
+                        use_vulkan_);
+                    modelrepair::StepReport sr;
+                    sr.name       = "Smooth";
+                    sr.was_run    = true;
+                    sr.duration_ms = smr.duration_ms;
+                    report.steps.push_back(sr);
+                } catch (const std::exception& e) {
+                    emit finished(std::move(mesh_), {}, QString("Smoothing failed: ") + e.what());
+                    return;
+                }
             }
+        } catch (const WizardCancelled&) {
+            emit finished(std::move(mesh_), {}, "__cancelled__");
+            return;
         }
     }
     else if (phase_ == Phase::Decimate)

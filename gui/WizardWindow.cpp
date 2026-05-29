@@ -18,7 +18,9 @@
 #include <QScrollArea>
 #include <QSpinBox>
 #include <QStackedWidget>
+#include <QElapsedTimer>
 #include <QThread>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -151,6 +153,8 @@ public:
         status_->setText(name);
     }
 
+    void set_elapsed(const QString& text) { elapsed_label_->setText(text); }
+
     void show_preview(modelrepair::Mesh before, modelrepair::Mesh after,
                       const modelrepair::RepairReport& report)
     {
@@ -234,8 +238,11 @@ private:
         progress_->setValue(0);
         status_ = new QLabel;
         status_->setAlignment(Qt::AlignCenter);
+        elapsed_label_ = new QLabel;
+        elapsed_label_->setAlignment(Qt::AlignCenter);
         vbox->addWidget(progress_);
         vbox->addWidget(status_);
+        vbox->addWidget(elapsed_label_);
         vbox->addStretch();
         return w;
     }
@@ -266,10 +273,11 @@ private:
     }
 
     QStackedWidget* inner_;
-    QProgressBar*   progress_  = nullptr;
-    QLabel*         status_    = nullptr;
-    QWidget*        view_area_ = nullptr;
-    QLabel*         stats_label_ = nullptr;
+    QProgressBar*   progress_      = nullptr;
+    QLabel*         status_        = nullptr;
+    QLabel*         elapsed_label_ = nullptr;
+    QWidget*        view_area_     = nullptr;
+    QLabel*         stats_label_   = nullptr;
 
     QCheckBox* chk_merge_        = nullptr;
     QCheckBox* chk_degen_        = nullptr;
@@ -344,6 +352,8 @@ public:
         progress_->setValue(step - 1);
         status_->setText(name);
     }
+
+    void set_elapsed(const QString& text) { elapsed_label_->setText(text); }
 
     void show_preview(modelrepair::Mesh before, modelrepair::Mesh after,
                       const modelrepair::RepairReport&)
@@ -484,9 +494,10 @@ private:
             const bool vk_ok = modelrepair::smooth_vulkan_available();
             chk_vulkan_ = new QCheckBox("Use GPU (Vulkan)");
             chk_vulkan_->setChecked(false);
-            chk_vulkan_->setEnabled(false);
             if (!vk_ok)
-                chk_vulkan_->setToolTip("Vulkan compute is not available on this machine");
+                chk_vulkan_->setVisible(false);
+            else
+                chk_vulkan_->setEnabled(chk_smooth_->isChecked());
             connect(chk_smooth_, &QCheckBox::toggled,
                     chk_vulkan_, [this, vk_ok](bool on) {
                         chk_vulkan_->setEnabled(on && vk_ok);
@@ -522,8 +533,11 @@ private:
         progress_ = new QProgressBar;
         status_   = new QLabel;
         status_->setAlignment(Qt::AlignCenter);
+        elapsed_label_ = new QLabel;
+        elapsed_label_->setAlignment(Qt::AlignCenter);
         vbox->addWidget(progress_);
         vbox->addWidget(status_);
+        vbox->addWidget(elapsed_label_);
         vbox->addStretch();
         return w;
     }
@@ -557,10 +571,11 @@ private:
     }
 
     QStackedWidget* inner_;
-    QProgressBar*   progress_    = nullptr;
-    QLabel*         status_      = nullptr;
-    QWidget*        view_area_   = nullptr;
-    QLabel*         stats_label_ = nullptr;
+    QProgressBar*   progress_      = nullptr;
+    QLabel*         status_        = nullptr;
+    QLabel*         elapsed_label_ = nullptr;
+    QWidget*        view_area_     = nullptr;
+    QLabel*         stats_label_   = nullptr;
 
     QCheckBox*      chk_remesh_       = nullptr;
     QDoubleSpinBox* spin_factor_      = nullptr;
@@ -630,6 +645,8 @@ public:
         progress_->setValue(step - 1);
         status_->setText(name);
     }
+
+    void set_elapsed(const QString& text) { elapsed_label_->setText(text); }
 
     void show_preview(modelrepair::Mesh before, modelrepair::Mesh after,
                       const modelrepair::RepairReport&)
@@ -733,8 +750,11 @@ private:
         progress_ = new QProgressBar;
         status_   = new QLabel;
         status_->setAlignment(Qt::AlignCenter);
+        elapsed_label_ = new QLabel;
+        elapsed_label_->setAlignment(Qt::AlignCenter);
         vbox->addWidget(progress_);
         vbox->addWidget(status_);
+        vbox->addWidget(elapsed_label_);
         vbox->addStretch();
         return w;
     }
@@ -768,10 +788,11 @@ private:
     }
 
     QStackedWidget* inner_;
-    QProgressBar*   progress_    = nullptr;
-    QLabel*         status_      = nullptr;
-    QWidget*        view_area_   = nullptr;
-    QLabel*         stats_label_ = nullptr;
+    QProgressBar*   progress_      = nullptr;
+    QLabel*         status_        = nullptr;
+    QLabel*         elapsed_label_ = nullptr;
+    QWidget*        view_area_     = nullptr;
+    QLabel*         stats_label_   = nullptr;
 
     QLabel*         analysis_faces_    = nullptr;
     QLabel*         analysis_closed_   = nullptr;
@@ -832,7 +853,7 @@ WizardWindow::WizardWindow(std::filesystem::path input_path, QWidget* parent)
     btn_cancel_ = new QPushButton("Cancel");
     cancel_row->addStretch();
     cancel_row->addWidget(btn_cancel_);
-    connect(btn_cancel_, &QPushButton::clicked, this, &QDialog::reject);
+    connect(btn_cancel_, &QPushButton::clicked, this, &WizardWindow::on_cancel_clicked);
     root->addLayout(cancel_row);
 
     // Wire page signals
@@ -865,7 +886,21 @@ void WizardWindow::closeEvent(QCloseEvent* event)
 
 void WizardWindow::start_worker_thread(WizardWorker* worker)
 {
-    btn_cancel_->setEnabled(false);
+    cancel_flag_ = std::make_shared<std::atomic<bool>>(false);
+    worker->set_cancel_flag(cancel_flag_);
+    elapsed_clock_.start();
+    step_clock_.start();
+    const QString zero = "0:00 / 0:00";
+    if      (current_phase_ == 1) page1_->set_elapsed(zero);
+    else if (current_phase_ == 2) page2_->set_elapsed(zero);
+    else                          page3_->set_elapsed(zero);
+    if (!elapsed_timer_) {
+        elapsed_timer_ = new QTimer(this);
+        elapsed_timer_->setInterval(1000);
+        connect(elapsed_timer_, &QTimer::timeout,
+                this, &WizardWindow::on_elapsed_tick);
+    }
+    elapsed_timer_->start();
     worker_thread_ = new QThread;
     worker->moveToThread(worker_thread_);
     connect(worker_thread_, &QThread::started,   worker, &WizardWorker::run);
@@ -882,6 +917,7 @@ void WizardWindow::on_progress(int step, int total, const QString& name)
     if (current_phase_ == 1)      page1_->update_progress(step, total, name);
     else if (current_phase_ == 2) page2_->update_progress(step, total, name);
     else                          page3_->update_progress(step, total, name);
+    step_clock_.restart();
 }
 
 void WizardWindow::on_worker_finished(modelrepair::Mesh result,
@@ -889,7 +925,17 @@ void WizardWindow::on_worker_finished(modelrepair::Mesh result,
                                        QString error)
 {
     worker_thread_ = nullptr;
+    cancel_flag_   = nullptr;
+    if (elapsed_timer_) elapsed_timer_->stop();
+    on_elapsed_tick();
     btn_cancel_->setEnabled(true);
+
+    if (error == "__cancelled__") {
+        if (current_phase_ == 1) page1_->show_options();
+        else if (current_phase_ == 2) page2_->show_options();
+        else page3_->show_analysis(current_mesh_);
+        return;
+    }
 
     if (!error.isEmpty()) {
         QMessageBox::critical(this, "Phase failed", error);
@@ -909,6 +955,30 @@ void WizardWindow::on_worker_finished(modelrepair::Mesh result,
         page2_->show_preview(before, current_mesh_, report);
     else
         page3_->show_preview(before, current_mesh_, report);
+}
+
+void WizardWindow::on_cancel_clicked()
+{
+    if (worker_thread_ && worker_thread_->isRunning()) {
+        if (cancel_flag_) {
+            cancel_flag_->store(true);
+            btn_cancel_->setEnabled(false);
+        }
+    } else {
+        reject();
+    }
+}
+
+void WizardWindow::on_elapsed_tick()
+{
+    auto fmt = [](qint64 ms) -> QString {
+        qint64 s = ms / 1000;
+        return QString("%1:%2").arg(s / 60).arg(s % 60, 2, 10, QChar('0'));
+    };
+    const QString text = fmt(elapsed_clock_.elapsed()) + " / " + fmt(step_clock_.elapsed());
+    if      (current_phase_ == 1) page1_->set_elapsed(text);
+    else if (current_phase_ == 2) page2_->set_elapsed(text);
+    else                          page3_->set_elapsed(text);
 }
 
 // ─── Phase 1 handlers ─────────────────────────────────────────────────────────

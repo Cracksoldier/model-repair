@@ -7,6 +7,9 @@
 #include <QObject>
 #include <QString>
 
+#include <atomic>
+#include <memory>
+
 namespace gui
 {
 
@@ -50,6 +53,11 @@ private:
     double       crease_angle_   = 45.0;
     bool         use_vulkan_     = false;
     double       decimate_ratio_ = 0.5;
+
+    std::shared_ptr<std::atomic<bool>> cancel_flag_;
+
+public:
+    void set_cancel_flag(std::shared_ptr<std::atomic<bool>> f) { cancel_flag_ = std::move(f); }
 };
 
 } // namespace gui
