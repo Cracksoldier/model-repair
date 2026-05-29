@@ -235,7 +235,7 @@ private:
         auto* vbox = new QVBoxLayout(w);
         vbox->addStretch();
         progress_ = new QProgressBar;
-        progress_->setRange(0, 6);
+        progress_->setRange(0, 7);
         progress_->setValue(0);
         status_ = new QLabel;
         status_->setAlignment(Qt::AlignCenter);

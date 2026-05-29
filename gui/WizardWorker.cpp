@@ -115,6 +115,7 @@ void WizardWorker::run()
                 }
             }
             if (do_subdivide_) {
+                if (cancel_flag_ && cancel_flag_->load()) throw WizardCancelled{};
                 emit progressChanged(done + 1, total, "Subdividing");
                 try {
                     auto method = (subdivide_method_ == 1)

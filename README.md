@@ -21,6 +21,7 @@ Supported formats: **STL** (binary + ASCII), **OBJ**, **3MF**.
 | Inconsistent normals | Faces whose winding order points inward instead of outward. Causes inside-out or partially inverted prints. |
 | Holes / open boundaries | Missing faces left by degenerate removal, non-manifold splitting, or upstream CAD errors. |
 | Self-intersections | Overlapping triangles from boolean CSG operations or poorly exported models. |
+| Internal geometry | Faces hidden inside a closed mesh (redundant shell fragments). Detected via centroid inside-test and removed automatically. |
 
 ---
 
@@ -284,6 +285,12 @@ Input mesh (polygon soup from STL/OBJ/3MF)
    internally for robustness, then converts back.
 
     ▼
+7. Remove internal geometry  [optional — disabled by default]
+   CGAL: Side_of_triangle_mesh
+   Removes faces whose centroid lies inside the closed mesh.
+   Skipped when the mesh is not closed or the option is off.
+
+    ▼
 Repaired mesh (manifold, closed, outward-oriented)
 ```
 
@@ -294,18 +301,23 @@ Repaired mesh (manifold, closed, outward-oriented)
 ```
 libmodelrepair.so              (shared library — LGPL-safe via dynamic linking)
 ├── Mesh                       CGAL Surface_mesh wrapper
-├── RepairPipeline             Ordered repair orchestration
+├── RepairPipeline             Ordered repair orchestration (7 steps)
 ├── RepairOptions              Plain struct — all tunable parameters
 ├── RepairReport               Per-step statistics (issues found/fixed, timing)
-└── io/                        STL / OBJ / 3MF readers and writers
+├── WallThickness              Per-face AABB ray-cast thickness analysis
+├── ShellSeparation            Connected-component detection, keep/split shells
+├── RemoveInternalGeometry     Centroid inside-test, removes hidden faces
+├── Subdivide                  Loop / Catmull-Clark mesh subdivision
+└── io/                        STL / OBJ / 3MF / GLB / GLTF readers and writers
 
 model-repair                   CLI frontend (links libmodelrepair)
 model-repair-gui               Qt 6 frontend (links libmodelrepair)
-├── MainWindow                 Main UI — options, progress, report
+├── MainWindow                 Main UI — options, progress, report, shell separation
+├── BatchWindow                Multi-file batch repair (QDialog)
 ├── WizardWindow               Guided three-phase repair workflow (QDialog)
 ├── WizardWorker               Per-phase background worker (QObject/QThread)
-├── PreviewWindow              Side-by-side Before/After 3D window
-└── MeshViewWidget             QOpenGLWidget — Phong shading, arcball camera
+├── PreviewWindow              Side-by-side Before/After 3D window with shading modes
+└── MeshViewWidget             QOpenGLWidget — Phong + heatmap shading, arcball camera
 ```
 
 The library is built as a shared object so CGAL's LGPL terms are satisfied by dynamic linking even if the frontends are distributed under a different license.
@@ -326,19 +338,28 @@ model-repair/
 │   ├── RepairOptions.hpp
 │   ├── RepairReport.hpp
 │   ├── RepairPipeline.hpp
+│   ├── WallThickness.hpp
+│   ├── ShellSeparation.hpp
+│   ├── RemoveInternalGeometry.hpp
+│   ├── Subdivide.hpp
+│   ├── Remesh.hpp
+│   ├── Smooth.hpp
+│   ├── Decimate.hpp
 │   └── io/  StlIO.hpp  ObjIO.hpp  ThreeMFIO.hpp  MeshIO.hpp
 ├── src/                       Library implementation
-│   ├── repairs/               One .cpp per repair step
+│   ├── repairs/               One .cpp per repair step + new analysis/processing
+│   ├── analysis/              WallThickness.cpp
 │   └── io/                    One .cpp per format
 ├── cli/main.cpp               CLI tool
 ├── gui/                       Qt 6 application
 │   ├── MainWindow.cpp/.hpp
 │   ├── RepairWorker.cpp/.hpp  QThread wrapper for background repair
 │   ├── ReportView.cpp/.hpp    QTreeWidget repair report display
-│   ├── PreviewWindow.cpp/.hpp Side-by-side Before/After 3D window
+│   ├── PreviewWindow.cpp/.hpp Side-by-side Before/After 3D window + shading modes
+│   ├── BatchWindow.cpp/.hpp   Multi-file batch repair dialog
 │   ├── WizardWindow.cpp/.hpp  Guided three-phase repair wizard (QDialog)
 │   ├── WizardWorker.cpp/.hpp  Per-phase background worker for the wizard
-│   └── MeshViewWidget.cpp/.hpp QOpenGLWidget with shared arcball camera
+│   └── MeshViewWidget.cpp/.hpp QOpenGLWidget — heatmap shader, arcball camera
 └── tests/
     ├── generate_test_meshes.py
     ├── test_mesh_io.cpp

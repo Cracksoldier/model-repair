@@ -231,7 +231,7 @@
       <a class="btn btn-secondary" href="documentation.html">Documentation →</a>
     </div>
     <div class="hero-stats">
-      <div class="stat"><div class="stat-val">6</div><div class="stat-label">repair steps</div></div>
+      <div class="stat"><div class="stat-val">7</div><div class="stat-label">repair steps</div></div>
       <div class="stat"><div class="stat-val">4</div><div class="stat-label">file formats</div></div>
       <div class="stat"><div class="stat-val">2</div><div class="stat-label">frontends (CLI + GUI)</div></div>
       <div class="stat"><div class="stat-val">24</div><div class="stat-label">automated tests</div></div>
@@ -243,7 +243,7 @@
 <section id="features">
   <div class="container">
     <p class="section-label">What it fixes</p>
-    <h2>Six repair steps, fully automated</h2>
+    <h2>Seven repair steps, fully automated</h2>
     <p class="section-intro">Every step runs in a strict order — each is a precondition for the next. Enable or disable individual steps via CLI flags or GUI checkboxes.</p>
 
     <div class="features-grid">
@@ -332,6 +332,41 @@
         <span class="learn-more">Learn more →</span>
       </a>
 
+      <a class="feature-card" href="documentation.html#step-internal">
+        <div class="feature-icon">🧹</div>
+        <h3>Internal Geometry Removal</h3>
+        <p>Detects and removes faces hidden inside a closed mesh using CGAL's Side_of_triangle_mesh inside-test. Eliminates redundant shell fragments that cause slicer artefacts.</p>
+        <span class="learn-more">Learn more →</span>
+      </a>
+
+      <a class="feature-card" href="documentation.html#subdivide">
+        <div class="feature-icon">🔷</div>
+        <h3>Subdivision</h3>
+        <p>Increase mesh resolution with Loop (triangles) or Catmull-Clark (general) subdivision — a quality-preserving alternative to remeshing for smooth organic shapes.</p>
+        <span class="learn-more">Learn more →</span>
+      </a>
+
+      <a class="feature-card" href="documentation.html#wall-thickness">
+        <div class="feature-icon">🌡️</div>
+        <h3>Wall Thickness Heatmap</h3>
+        <p>AABB ray-cast analysis colors each face by measured wall thickness — blue for thin walls, red for thick — so potential print failures are visible at a glance.</p>
+        <span class="learn-more">Learn more →</span>
+      </a>
+
+      <a class="feature-card" href="documentation.html#overhang">
+        <div class="feature-icon">📐</div>
+        <h3>Overhang Highlight</h3>
+        <p>Shades faces by overhang angle in the Before/After preview. Steep overhangs appear red; well-supported horizontal faces appear blue — no support estimator needed.</p>
+        <span class="learn-more">Learn more →</span>
+      </a>
+
+      <a class="feature-card" href="documentation.html#shells">
+        <div class="feature-icon">🐚</div>
+        <h3>Shell Separation</h3>
+        <p>Detects disconnected mesh shells and lets you keep the largest, or export every shell as a separate file — useful for multi-body imports and split models.</p>
+        <span class="learn-more">Learn more →</span>
+      </a>
+
     </div>
 
     <div class="format-row">
@@ -363,7 +398,7 @@
 
     <div id="tab-appimage" class="tab-panel active">
       <pre><button class="copy-btn">copy</button><span class="cmt"># Set the version tag from the Releases page, then download</span>
-<span class="val">VERSION</span>=v0.3.0
+<span class="val">VERSION</span>=v0.4.0
 <span class="cmd">wget</span> <span class="str">https://github.com/Cracksoldier/3d-print-model-repair/releases/download/<span class="val">${VERSION}</span>/model-repair-<span class="val">${VERSION}</span>-x86_64.AppImage</span>
 <span class="cmd">chmod</span> <span class="val">+x</span> model-repair-<span class="val">${VERSION}</span>-x86_64.AppImage
 
@@ -463,7 +498,7 @@ model-repair.exe broken.stl repaired.stl <span class="flag">--verbose</span></pr
 <!-- Footer -->
 <footer>
   <div class="footer-inner">
-    <span>model-repair v0.3.0 — MIT License</span>
+    <span>model-repair v0.4.0 — MIT License</span>
     <div class="footer-links">
       <a href="documentation.html">Documentation</a>
       <a href="https://github.com/Cracksoldier/3d-print-model-repair" target="_blank" rel="noopener">GitHub</a>

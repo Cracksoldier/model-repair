@@ -265,6 +265,7 @@
       <a href="#step-normals">4. Fix Face Normals</a>
       <a href="#step-holes">5. Fill Holes</a>
       <a href="#step-self-intersections">6. Self-Intersections</a>
+      <a href="#step-internal">7. Internal Geometry</a>
     </div>
     <div class="sidebar-section">
       <div class="sidebar-section-label">Post-Repair</div>
@@ -276,6 +277,10 @@
       <a href="#remesh">Isotropic Remeshing</a>
       <a href="#remesh-workflow" class="sub">Workflow tips</a>
       <a href="#decimate">Mesh Decimation</a>
+      <a href="#subdivide">Subdivision</a>
+      <a href="#shells">Shell Separation</a>
+      <a href="#wall-thickness">Wall Thickness Heatmap</a>
+      <a href="#overhang">Overhang Highlight</a>
     </div>
     <div class="sidebar-section">
       <div class="sidebar-section-label">Performance</div>
@@ -325,7 +330,7 @@
       <p>
         <strong>model-repair</strong> is a 3D mesh repair tool for Linux and Windows built on
         <a href="https://www.cgal.org/" target="_blank" rel="noopener">CGAL</a>.
-        It automatically detects and fixes the six most common mesh defects that prevent
+        It automatically detects and fixes the seven most common mesh defects that prevent
         3D printing, boolean operations, and FEM analysis from working correctly.
       </p>
       <p>
@@ -366,6 +371,10 @@
         <div class="pipe-step">
           <div class="pipe-num">6</div>
           <div class="pipe-body"><strong>Remove Self-Intersections</strong><span>Heal overlapping triangles with exact arithmetic (slow)</span></div>
+        </div>
+        <div class="pipe-step">
+          <div class="pipe-num">7</div>
+          <div class="pipe-body"><strong>Remove Internal Geometry</strong><span>Delete faces hidden inside the closed mesh (off by default)</span></div>
         </div>
       </div>
 
@@ -793,6 +802,72 @@
       they appear as <code>issues_found − issues_fixed</code>.</p>
     </section>
 
+    <!-- ── Step 7 ─────────────────────────────────────────────────────── -->
+    <section id="step-internal" class="anchor">
+      <h2>Step 7 — Remove Internal Geometry</h2>
+
+      <div class="step-header">
+        <div class="step-num">7</div>
+        <div>
+          <h3 style="margin:0">Remove Internal Geometry</h3>
+          <span style="font-size:0.85rem;color:var(--muted);">Requires steps 1–5 (closed mesh) · Disabled by default</span>
+        </div>
+        <span class="step-tag">CGAL EPICK</span>
+      </div>
+
+      <h3>What it fixes</h3>
+      <p>
+        Some models contain <em>internal shell fragments</em> — triangles that are completely
+        enclosed inside the outer surface of a closed mesh. These arise from:
+      </p>
+      <ul>
+        <li>Boolean operations that leave remnant interior geometry</li>
+        <li>CAD assemblies where internal walls were not removed before export</li>
+        <li>Multi-body models exported as a single file with overlapping volumes</li>
+      </ul>
+      <p>
+        Internal geometry causes incorrect volume calculations, inflated material estimates,
+        and artefacts in slicers that compute infill relative to all visible surfaces.
+        Removing it produces a simpler, lighter mesh representing only the true outer boundary.
+      </p>
+
+      <div class="callout warn">
+        <strong>Closed mesh required.</strong>
+        The inside-test requires a watertight mesh. If the mesh has boundary edges after
+        steps 1–5, this step is skipped automatically and reports <code>faces_removed = 0</code>.
+        Run Fill Holes (step 5) first.
+      </div>
+
+      <h3>How it works</h3>
+      <p>
+        The step uses CGAL's <code>Side_of_triangle_mesh</code> predicate (EPICK kernel).
+        For each face, the centroid <code>CGAL::centroid(p0, p1, p2)</code> is computed and
+        tested with <code>inside_test(centroid)</code>. Faces where the centroid is
+        <code>ON_BOUNDED_SIDE</code> (strictly inside the closed mesh) are collected, then
+        removed via <code>sm.remove_face(f)</code> and <code>sm.collect_garbage()</code>.
+      </p>
+
+      <h3>Options</h3>
+      <table>
+        <thead><tr><th>RepairOptions field</th><th>CLI flag</th><th class="td-type">Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>remove_internal_geometry</code></td><td>n/a (GUI checkbox only)</td><td class="td-type">bool</td><td class="td-default">false</td><td>Enable/disable this step. Off by default because it is only meaningful on meshes with known interior fragments and is not safe to apply blindly.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Report output</h3>
+      <p><code>issues_found</code> = number of faces whose centroid was inside the mesh.<br>
+      <code>issues_fixed</code> = same value (all detected faces are removed).</p>
+
+      <h3>API</h3>
+      <pre><span class="kw">#include</span> <span class="str">"modelrepair/RemoveInternalGeometry.hpp"</span>
+
+<span class="cmt">// Must be called after repair (mesh must be closed)</span>
+modelrepair::RemoveInternalGeometryResult r = modelrepair::remove_internal_geometry(mesh);
+std::cout &lt;&lt; r.faces_removed &lt;&lt; <span class="str">" internal faces removed in "</span>
+          &lt;&lt; r.duration_ms &lt;&lt; <span class="str">" ms\n"</span>;</pre>
+    </section>
+
     <!-- ── Post-repair ──────────────────────────────────────────────── -->
     <section id="diagnose" class="anchor">
       <h2>Diagnose Mode</h2>
@@ -883,7 +958,7 @@ assert(report.diagnose_only == <span class="val">true</span>);</pre>
       <h2>Mesh Decimation</h2>
       <p>
         Decimation reduces the polygon count of the repaired mesh while preserving overall
-        shape. It runs <em>after</em> all six repair steps and is separate from the pipeline:
+        shape. It runs <em>after</em> all seven repair steps and is separate from the pipeline:
         a clean, watertight mesh is always the intermediate product.
       </p>
 
@@ -1209,6 +1284,151 @@ std::cout &lt;&lt; rr.faces_before &lt;&lt; <span class="str">" → "</span> &lt
 
 modelrepair::smooth(mesh, <span class="val">3</span>, <span class="val">45.0</span>);</pre>
       <p>The function may throw <code>std::exception</code> on malformed meshes.</p>
+    </section>
+
+    <!-- ── Subdivide ─────────────────────────────────────────────────── -->
+    <section id="subdivide" class="anchor">
+      <h2>Subdivision</h2>
+      <p>
+        Subdivision increases mesh resolution by splitting each face into smaller faces while
+        preserving or improving surface curvature. Unlike remeshing, subdivision never moves
+        vertex positions toward a target edge length — it only refines the existing topology.
+        Use it when you want a smoother, denser mesh without redistributing triangles.
+      </p>
+
+      <div class="callout info">
+        <strong>Subdivision is available in Wizard Phase 2</strong> (alongside Remesh and Smooth).
+        It is not exposed on the CLI or the main-window options panel.
+      </div>
+
+      <h3>Methods</h3>
+      <table>
+        <thead><tr><th>Method</th><th>Input requirement</th><th>Face growth per iteration</th><th>Best for</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Loop</strong></td><td>Triangle mesh (all faces must be triangles)</td><td>4×</td><td>Organic shapes, character meshes</td></tr>
+          <tr><td><strong>Catmull-Clark</strong></td><td>Arbitrary polygons (quads, triangles, n-gons)</td><td>4× (quads)</td><td>CAD models with quad topology, subdivision surfaces</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Each iteration multiplies the face count by approximately 4. After 3 iterations a
+        100k-face mesh grows to ~1.6M faces — check the subdivision warning in Wizard Phase 2
+        (it fires when the projected count exceeds 2 000 000).
+      </p>
+
+      <h3>API</h3>
+      <pre><span class="kw">#include</span> <span class="str">"modelrepair/Subdivide.hpp"</span>
+
+<span class="cmt">// Loop subdivision — 2 iterations</span>
+modelrepair::SubdivisionResult sr = modelrepair::subdivide(
+    mesh, <span class="val">2</span>, modelrepair::SubdivisionMethod::Loop);
+std::cout &lt;&lt; sr.faces_before &lt;&lt; <span class="str">" → "</span> &lt;&lt; sr.faces_after
+          &lt;&lt; <span class="str">" faces  ("</span> &lt;&lt; sr.duration_ms &lt;&lt; <span class="str">" ms)\n"</span>;
+
+<span class="cmt">// Catmull-Clark — 1 iteration</span>
+modelrepair::subdivide(mesh, <span class="val">1</span>, modelrepair::SubdivisionMethod::CatmullClark);</pre>
+    </section>
+
+    <!-- ── Shell Separation ────────────────────────────────────────── -->
+    <section id="shells" class="anchor">
+      <h2>Shell Separation</h2>
+      <p>
+        A mesh may contain multiple <em>disconnected shells</em> — connected components with
+        no shared vertices. This happens with multi-body exports, accidental duplications,
+        or repair operations that leave small fragments. Shell Separation detects and lets you
+        manage these components.
+      </p>
+
+      <h3>GUI</h3>
+      <p>
+        Click <strong>Separate Shells…</strong> in the main window (enabled whenever a mesh
+        is loaded). The dialog shows the number of detected shells and the face count of each.
+        Two actions are available:
+      </p>
+      <ul>
+        <li><strong>Keep Largest</strong> — discards all shells except the one with the most faces. Modifies the current mesh in place.</li>
+        <li><strong>Export All…</strong> — opens a directory chooser and saves each shell as a separate file: <code>stem_shell_0.stl</code>, <code>stem_shell_1.stl</code>, … Sorted largest-first.</li>
+      </ul>
+
+      <h3>API</h3>
+      <pre><span class="kw">#include</span> <span class="str">"modelrepair/ShellSeparation.hpp"</span>
+
+<span class="cmt">// Analyse without modifying the mesh</span>
+modelrepair::ShellSeparationResult info = modelrepair::analyze_shells(mesh);
+std::cout &lt;&lt; info.components_found &lt;&lt; <span class="str">" shells\n"</span>;
+<span class="kw">for</span> (<span class="kw">auto</span>&amp; s : info.shells)
+    std::cout &lt;&lt; s.face_count &lt;&lt; <span class="str">" faces  "</span> &lt;&lt; (s.is_closed ? <span class="str">"closed"</span> : <span class="str">"open"</span>) &lt;&lt; <span class="str">"\n"</span>;
+
+<span class="cmt">// Keep only the largest shell (modifies mesh in place)</span>
+modelrepair::keep_shells(mesh, <span class="val">1</span>);
+
+<span class="cmt">// Split into separate Mesh objects (sorted largest-first)</span>
+std::vector&lt;modelrepair::Mesh&gt; parts = modelrepair::split_shells(mesh);</pre>
+    </section>
+
+    <!-- ── Wall Thickness ──────────────────────────────────────────── -->
+    <section id="wall-thickness" class="anchor">
+      <h2>Wall Thickness Heatmap</h2>
+      <p>
+        The wall thickness heatmap colours each face of the after-mesh by the measured local
+        wall thickness. Thin walls appear blue; thick regions appear red. This lets you
+        visually identify areas likely to fail during FDM or resin printing before slicing.
+      </p>
+
+      <h3>How it works</h3>
+      <p>
+        An AABB tree is built over all mesh faces. For each face:
+      </p>
+      <ol>
+        <li>Compute the face centroid.</li>
+        <li>Cast a ray from <code>centroid + ε × outward_normal</code> inward along <code>−normal</code>.</li>
+        <li>Find the first intersection via <code>AABB_tree::first_intersection(ray)</code>.</li>
+        <li>The intersection distance is the local wall thickness at that face.</li>
+      </ol>
+      <p>
+        Results are normalised to [0, 1] using the 95th percentile as the maximum cap, then
+        mapped through the heatmap: <code>scalar = 1 − clamp((t − min) / range, 0, 1)</code>
+        so thin = 1 = red, thick = 0 = blue.
+      </p>
+
+      <h3>How to enable</h3>
+      <p>
+        Open the <a href="#gui-preview">3D Preview Window</a> after repair, then select
+        <strong>Wall Thickness</strong> from the <strong>Shading</strong> dropdown above the
+        viewports. The analysis runs automatically.
+      </p>
+
+      <h3>API</h3>
+      <pre><span class="kw">#include</span> <span class="str">"modelrepair/WallThickness.hpp"</span>
+
+<span class="cmt">// Returns per-face thicknesses in mesh units</span>
+std::vector&lt;double&gt; t = modelrepair::analyze_wall_thickness(mesh);
+<span class="cmt">// t[i] is the thickness at face i; numeric_limits&lt;double&gt;::max() means no-hit</span></pre>
+    </section>
+
+    <!-- ── Overhang ─────────────────────────────────────────────────── -->
+    <section id="overhang" class="anchor">
+      <h2>Overhang Highlight</h2>
+      <p>
+        The overhang highlight colours each face by how steeply it overhangs the print bed.
+        Well-supported horizontal faces appear blue; steep overhangs appear red. This is a
+        quick visual check for areas that may require support structures.
+      </p>
+
+      <h3>How it works</h3>
+      <p>
+        The scalar for each face is computed inline during VBO upload as
+        <code>std::max(0.0f, −nz)</code> where <code>nz</code> is the Z component of the
+        outward face normal. A face pointing straight down (nz = −1) gets scalar = 1 (red);
+        a face pointing up or sideways gets scalar = 0 (blue). No ray-casting is required —
+        computation is immediate.
+      </p>
+
+      <h3>How to enable</h3>
+      <p>
+        Open the <a href="#gui-preview">3D Preview Window</a> after repair, then select
+        <strong>Overhang</strong> from the <strong>Shading</strong> dropdown. Both viewports
+        switch to overhang colouring so you can compare before/after overhang distribution.
+      </p>
     </section>
 
     <!-- ── Performance ──────────────────────────────────────────────── -->
@@ -1716,10 +1936,22 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
           <tr><td>Iterations (spinbox, enabled when Smooth ☑)</td><td><code>smooth_iterations</code></td><td>3</td></tr>
           <tr><td>Crease angle (spinbox, enabled when Smooth ☑)</td><td><code>smooth_crease_angle</code></td><td>45.0°</td></tr>
           <tr><td>Use GPU (Vulkan) ☐ (enabled when Smooth ☑ and Vulkan available)</td><td><code>smooth_use_vulkan</code></td><td>Off</td></tr>
+          <tr><td>Remove internal geometry ☐</td><td><code>remove_internal_geometry</code></td><td>Off</td></tr>
           <tr><td>Decimate after repair ☐</td><td><code>decimate</code></td><td>Off</td></tr>
           <tr><td>Retain fraction (spinbox, enabled when Decimate ☑)</td><td><code>decimate_ratio</code></td><td>0.50</td></tr>
         </tbody>
       </table>
+
+      <h4>Separate Shells</h4>
+      <p>
+        The <strong>Separate Shells…</strong> button (enabled when a mesh is loaded) opens an
+        inline dialog that shows the number of disconnected shells detected in the current mesh.
+        Two actions are available:
+      </p>
+      <ul>
+        <li><strong>Keep Largest</strong> — discards all but the largest connected component (by face count) and updates the mesh in place. Useful for removing stray fragments after repair.</li>
+        <li><strong>Export All…</strong> — opens a directory chooser and saves each shell as a separate file (<code>stem_shell_0.stl</code>, <code>stem_shell_1.stl</code>, …) in that directory.</li>
+      </ul>
 
       <h4>Running a repair</h4>
       <p>
@@ -1727,7 +1959,7 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
         (<code>RepairWorker</code> on a <code>QThread</code>) so the UI stays responsive.
         While running, all input controls (options panel, Open file, Batch Repair, drop zone)
         are disabled to prevent conflicting changes. A progress bar advances one slot per
-        operation across all enabled steps — 6 pipeline steps, then one slot per remesh
+        operation across all enabled steps — 7 pipeline steps, then one slot per remesh
         iteration ("Remeshing 1/3 → 2/3 → 3/3"), one slot per smooth iteration
         ("Smoothing 1/3 → 2/3 → 3/3"), and one slot for decimate — so the bar moves
         continuously rather than freezing on a single step. An elapsed time counter in <code>M:SS / M:SS</code> format (total elapsed / current step)
@@ -1785,7 +2017,7 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
       </p>
 
       <h4>Phase 1 — Repair</h4>
-      <p>Mandatory. Runs the six-step repair pipeline on the loaded mesh.</p>
+      <p>Mandatory. Runs the seven-step repair pipeline on the loaded mesh.</p>
       <table>
         <thead><tr><th>Option</th><th>Default</th><th>Notes</th></tr></thead>
         <tbody>
@@ -1795,10 +2027,11 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
           <tr><td>Fix face normals</td><td>On</td><td></td></tr>
           <tr><td>Fill holes</td><td>On</td><td>Max hole edges spinbox (0 = no limit)</td></tr>
           <tr><td>Remove self-intersections</td><td>On</td><td>⚠ Slow — can take minutes on complex meshes</td></tr>
+          <tr><td>Remove internal geometry</td><td>Off</td><td>Centroid inside-test; only meaningful on meshes with interior fragments</td></tr>
         </tbody>
       </table>
       <p>
-        Progress advances one slot per pipeline step (6 total). After the repair completes,
+        Progress advances one slot per pipeline step (7 total). After the repair completes,
         a before/after preview is shown. Navigation: <strong>Save As…</strong> to save and
         close, or <strong>Continue to Phase 2 →</strong>.
       </p>
@@ -1814,6 +2047,7 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
           <tr><td>Remesh (isotropic)</td><td>Off</td><td>Edge length factor 0.1–2.0 (default 0.8; &lt;1 = finer, &gt;1 = coarser), iterations 1–10 (default 3). Runs on a single CPU core (CGAL has no parallel remesh implementation).</td></tr>
           <tr><td>Smooth</td><td>Off</td><td>Iterations 1–50 (default 3), crease angle 0–180° (default 45° — edges sharper than this are preserved as hard features). Uses all CPU cores via TBB, or optionally the GPU via Vulkan.</td></tr>
           <tr><td>Use GPU (Vulkan) <em>(smooth only)</em></td><td>Off</td><td>Hidden when Vulkan is unavailable at runtime. Only enabled when Smooth is checked.</td></tr>
+          <tr><td>Subdivide</td><td>Off</td><td>Loop (triangles) or Catmull-Clark (general), 1–4 iterations. A warning appears when the resulting face count would exceed 2 000 000.</td></tr>
         </tbody>
       </table>
       <p>
@@ -1822,9 +2056,10 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
         is ≤ 0.6 (runtimes can reach hours on moderately sized models — confirmed by testing).
         These two warnings are mutually exclusive: the fine-mesh warning takes priority and
         suppresses the large-mesh warning when both conditions are true. A warning also appears
-        under smooth when iterations exceed 10. Click <strong>Skip this phase</strong>
-        to proceed directly to Phase 3. Progress tracks one slot per remesh iteration followed
-        by one slot per smooth iteration. After the phase completes, a
+        under smooth when iterations exceed 10, and under subdivide when
+        <code>face_count × 4<sup>iters</sup> &gt; 2 000 000</code>. Click <strong>Skip this phase</strong>
+        to proceed directly to Phase 3. Progress tracks one slot per remesh iteration, one slot
+        per smooth iteration, and one slot for subdivision. After the phase completes, a
         <strong>← Adjust settings</strong> button appears in the preview — clicking it reverts
         the mesh to its pre-phase state and returns to the options page with all parameter values
         intact, so you can tweak them and re-run without restarting the wizard.
@@ -1856,6 +2091,25 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
         The preview window opens automatically after a successful repair. It shows the original
         (before) mesh on the left and the repaired (after) mesh on the right, rendered
         side-by-side with flat-shaded Phong lighting using OpenGL 3.3.
+      </p>
+
+      <h4>Shading modes</h4>
+      <p>
+        A <strong>Shading</strong> dropdown above the two viewports selects the colouring mode:
+      </p>
+      <table>
+        <thead><tr><th>Mode</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Normal</strong></td><td>Flat-shaded Phong lighting with a uniform grey colour. Default.</td></tr>
+          <tr><td><strong>Wall Thickness</strong></td><td>AABB ray-cast analysis — each face is coloured by measured wall thickness. Blue = thin, red = thick. Values are capped at the 95th percentile for normalization so outliers don't wash out the colourmap. Useful for spotting walls that will fail FDM printing.</td></tr>
+          <tr><td><strong>Overhang</strong></td><td>Each face is coloured by its downward-facing angle. Blue = horizontal/well-supported, red = steep overhang. Scalar = <code>max(0, −nz)</code> from the face normal's Z component.</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Selecting "Wall Thickness" triggers an AABB tree build and per-face ray-cast computation;
+        on large meshes this may take a second. The result is cached until the mode is changed.
+        Both viewports are coloured independently — the before-mesh always uses Normal mode for
+        comparison clarity; only the after-mesh uses the heatmap.
       </p>
 
       <h4>Camera controls</h4>
@@ -1961,6 +2215,7 @@ std::cout &lt;&lt; report.format_text();
           <tr><td><code>max_hole_edges</code></td><td class="td-type">size_t</td><td class="td-default">0</td><td>Skip holes with more than N edges (0 = no limit).</td></tr>
           <tr><td><code>fill_holes_smooth</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Smooth refine (true) vs flat fan (false) for hole fill.</td></tr>
           <tr><td><code>remove_self_intersections</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Run step 6 (slow, uses EPECK).</td></tr>
+          <tr><td><code>remove_internal_geometry</code></td><td class="td-type">bool</td><td class="td-default">false</td><td>Run step 7 — centroid inside-test; requires a closed mesh. Skipped automatically if not closed.</td></tr>
           <tr><td><code>diagnose_only</code></td><td class="td-type">bool</td><td class="td-default">false</td><td>Run detection on a mesh copy; original is unchanged. See <a href="#diagnose">Diagnose Mode</a>.</td></tr>
           <tr><td><code>smooth</code></td><td class="td-type">bool</td><td class="td-default">false</td><td>Apply post-repair angle smoothing. Ignored when <code>diagnose_only</code> is true. Runs before decimation.</td></tr>
           <tr><td><code>smooth_iterations</code></td><td class="td-type">unsigned int</td><td class="td-default">3</td><td>Number of Laplacian iterations (1–50).</td></tr>
@@ -2229,7 +2484,7 @@ modelrepair::DecimateResult modelrepair::decimate(Mesh&amp; mesh, <span class="k
 
       <h3>Running the AppImage</h3>
       <pre><button class="copy-btn">copy</button><span class="cmt"># Set the version tag from the Releases page, then download</span>
-<span class="val">VERSION</span>=v0.3.0
+<span class="val">VERSION</span>=v0.4.0
 <span class="cmd">wget</span> <span class="str">https://github.com/Cracksoldier/3d-print-model-repair/releases/download/<span class="val">${VERSION}</span>/model-repair-<span class="val">${VERSION}</span>-x86_64.AppImage</span>
 <span class="cmd">chmod</span> <span class="val">+x</span> model-repair-<span class="val">${VERSION}</span>-x86_64.AppImage
 
@@ -2339,7 +2594,7 @@ model-repair\
       <table>
         <thead><tr><th>Input</th><th>Example</th><th>Description</th></tr></thead>
         <tbody>
-          <tr><td><code>version</code></td><td><code>v0.3.0</code></td><td>ZIP filename label. Defaults to <code>dev</code> for test builds.</td></tr>
+          <tr><td><code>version</code></td><td><code>v0.4.0</code></td><td>ZIP filename label. Defaults to <code>dev</code> for test builds.</td></tr>
           <tr><td><code>create_release</code></td><td><code>true</code></td><td>Create a draft GitHub Release with the ZIP attached and push the git tag.</td></tr>
           <tr><td><code>next_version</code></td><td><code>0.4.0</code></td><td>After the release, update <code>CMakeLists.txt</code> and push a version-bump commit to <code>main</code>. Leave blank to skip.</td></tr>
         </tbody>
@@ -2357,7 +2612,7 @@ model-repair\
 </div>
 
 <footer>
-  <span>model-repair v0.3.0 — MIT License</span>
+  <span>model-repair v0.4.0 — MIT License</span>
   <div class="footer-links">
     <a href="index.html">← Home</a>
     <a href="https://github.com/Cracksoldier/3d-print-model-repair" target="_blank" rel="noopener">GitHub</a>
