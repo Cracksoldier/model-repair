@@ -377,7 +377,9 @@ private:
     void update_warnings()
     {
         const bool remesh_on = chk_remesh_->isChecked();
-        warn_large_->setVisible(remesh_on && face_count_ > 200'000);
+        const bool fine = remesh_on && spin_factor_->value() < 0.61;
+        warn_fine_->setVisible(fine);
+        warn_large_->setVisible(remesh_on && !fine && face_count_ > 200'000);
         warn_smooth_->setVisible(chk_smooth_->isChecked() && spin_smooth_iters_->value() > 10);
     }
 
@@ -426,6 +428,8 @@ private:
             vb->addLayout(make_row("Edge length factor:", spin_factor_));
             vb->addWidget(info_label("< 1.0 = finer mesh (more triangles), > 1.0 = coarser mesh (fewer triangles). "
                                      "0.8 is a good starting point for organic shapes."));
+            connect(spin_factor_, &QDoubleSpinBox::valueChanged,
+                    this, [this](double) { update_warnings(); });
 
             spin_remesh_iters_ = new QSpinBox;
             spin_remesh_iters_->setRange(1, 10);
@@ -438,6 +442,17 @@ private:
             warn_large_ = warn_label("⚠ This mesh is large — remeshing may take several minutes.");
             warn_large_->setVisible(false);
             vb->addWidget(warn_large_);
+
+            warn_fine_ = warn_label(
+                "⚠ Edge length factor ≤ 0.6 generates a very fine mesh — "
+                "remeshing may take hours even on moderately sized models.");
+            warn_fine_->setVisible(false);
+            vb->addWidget(warn_fine_);
+
+            vb->addWidget(info_label(
+                "Note: remeshing runs on a single CPU core — CGAL's isotropic remeshing "
+                "has no parallel implementation. Expect longer runtimes on meshes with "
+                "more than ~100 K faces."));
         }
         vbox->addWidget(remesh_body);
 
@@ -581,6 +596,7 @@ private:
     QDoubleSpinBox* spin_factor_      = nullptr;
     QSpinBox*       spin_remesh_iters_= nullptr;
     QLabel*         warn_large_       = nullptr;
+    QLabel*         warn_fine_        = nullptr;
 
     QCheckBox*      chk_smooth_       = nullptr;
     QSpinBox*       spin_smooth_iters_= nullptr;
