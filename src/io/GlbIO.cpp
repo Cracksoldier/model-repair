@@ -9,10 +9,12 @@
 
 #include "modelrepair/io/GlbIO.hpp"
 
+#include <CGAL/IO/Color.h>
 #include <CGAL/Polygon_mesh_processing/polygon_soup_to_polygon_mesh.h>
 #include <CGAL/Polygon_mesh_processing/orient_polygon_soup.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <limits>
 #include <stdexcept>
@@ -115,6 +117,76 @@ void collect_triangles(const tinygltf::Model& model, int acc_idx,
     }
 }
 
+// Read COLOR_0 accessor into soup_colors. The accessor may be VEC3/VEC4
+// with component types FLOAT, UNSIGNED_BYTE, or UNSIGNED_SHORT (glTF spec §3.8.3).
+// Alpha is dropped; values are converted to [0,255] uint8.
+void collect_colors(const tinygltf::Model& model, int acc_idx,
+                    std::size_t base_vertex, std::size_t vertex_count,
+                    std::vector<CGAL::IO::Color>& soup_colors)
+{
+    const auto& acc = model.accessors[acc_idx];
+    const auto& bv  = model.bufferViews[acc.bufferView];
+    const auto& buf = model.buffers[bv.buffer];
+
+    if (static_cast<std::size_t>(acc.count) != vertex_count)
+        return;  // mismatch — skip silently
+
+    const bool is_vec3 = (acc.type == TINYGLTF_TYPE_VEC3);
+    const bool is_vec4 = (acc.type == TINYGLTF_TYPE_VEC4);
+    if (!is_vec3 && !is_vec4)
+        return;
+
+    const int comp = acc.componentType;
+    const std::size_t n_comp = is_vec4 ? 4 : 3;
+    std::size_t elem_bytes;
+    switch (comp)
+    {
+    case TINYGLTF_COMPONENT_TYPE_FLOAT:          elem_bytes = 4; break;
+    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:  elem_bytes = 1; break;
+    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT: elem_bytes = 2; break;
+    default: return;
+    }
+
+    const std::size_t stride = bv.byteStride ? bv.byteStride : n_comp * elem_bytes;
+    const std::size_t base   = bv.byteOffset + acc.byteOffset;
+
+    if (soup_colors.size() < base_vertex + vertex_count)
+        soup_colors.resize(base_vertex + vertex_count);
+
+    for (std::size_t i = 0; i < vertex_count; ++i)
+    {
+        const std::uint8_t* ptr = buf.data.data() + base + i * stride;
+        std::uint8_t r, g, b;
+        if (comp == TINYGLTF_COMPONENT_TYPE_FLOAT)
+        {
+            float fr, fg, fb;
+            std::memcpy(&fr, ptr,     4);
+            std::memcpy(&fg, ptr + 4, 4);
+            std::memcpy(&fb, ptr + 8, 4);
+            auto to_u8 = [](float v) -> std::uint8_t {
+                return static_cast<std::uint8_t>(
+                    std::clamp(static_cast<int>(v * 255.0f + 0.5f), 0, 255));
+            };
+            r = to_u8(fr); g = to_u8(fg); b = to_u8(fb);
+        }
+        else if (comp == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE)
+        {
+            r = ptr[0]; g = ptr[1]; b = ptr[2];
+        }
+        else  // UNSIGNED_SHORT — scale to uint8 by >> 8
+        {
+            std::uint16_t sr, sg, sb;
+            std::memcpy(&sr, ptr,     2);
+            std::memcpy(&sg, ptr + 2, 2);
+            std::memcpy(&sb, ptr + 4, 2);
+            r = static_cast<std::uint8_t>(sr >> 8);
+            g = static_cast<std::uint8_t>(sg >> 8);
+            b = static_cast<std::uint8_t>(sb >> 8);
+        }
+        soup_colors[base_vertex + i] = CGAL::IO::Color(r, g, b);
+    }
+}
+
 } // namespace
 
 Mesh read_glb(const std::filesystem::path& path)
@@ -138,6 +210,8 @@ Mesh read_glb(const std::filesystem::path& path)
 
     std::vector<Point3> points;
     std::vector<std::vector<std::size_t>> polygons;
+    std::vector<CGAL::IO::Color> soup_colors;
+    bool any_color = false;
 
     for (const auto& mesh : model.meshes)
     {
@@ -156,6 +230,13 @@ Mesh read_glb(const std::filesystem::path& path)
             const std::size_t vertex_count = model.accessors[pos_it->second].count;
             collect_positions(model, pos_it->second, points);
             collect_triangles(model, prim.indices, base, vertex_count, polygons);
+
+            const auto col_it = prim.attributes.find("COLOR_0");
+            if (col_it != prim.attributes.end())
+            {
+                collect_colors(model, col_it->second, base, vertex_count, soup_colors);
+                any_color = true;
+            }
         }
     }
 
@@ -165,6 +246,18 @@ Mesh read_glb(const std::filesystem::path& path)
     PMP::orient_polygon_soup(points, polygons);
     Mesh mesh;
     PMP::polygon_soup_to_polygon_mesh(points, polygons, mesh.cgal());
+
+    if (any_color && soup_colors.size() == points.size())
+    {
+        auto [cmap, ok] = mesh.cgal().add_property_map<SurfMesh::Vertex_index, CGAL::IO::Color>(
+            "v:color", CGAL::IO::Color(128, 128, 128));
+        if (ok)
+        {
+            for (std::size_t i = 0; i < soup_colors.size(); ++i)
+                cmap[SurfMesh::Vertex_index(static_cast<SurfMesh::size_type>(i))] = soup_colors[i];
+        }
+    }
+
     return mesh;
 }
 
@@ -221,12 +314,31 @@ void write_glb(const Mesh& mesh, const std::filesystem::path& path)
         idx_data.push_back(vmap.at(sm.target(sm.next(he))));
     }
 
-    // Pack into a single binary buffer: positions then indices.
+    // Optionally build per-vertex color data (VEC3 FLOAT in [0,1]).
+    auto cmap_opt = sm.property_map<SurfMesh::Vertex_index, CGAL::IO::Color>("v:color");
+    const bool has_colors = cmap_opt.has_value();
+    std::vector<float> col_data;
+    if (has_colors)
+    {
+        col_data.reserve(sm.number_of_vertices() * 3);
+        for (const auto v : sm.vertices())
+        {
+            const auto& c = cmap_opt.value()[v];
+            col_data.push_back(c.red()   / 255.0f);
+            col_data.push_back(c.green() / 255.0f);
+            col_data.push_back(c.blue()  / 255.0f);
+        }
+    }
+
+    // Pack into a single binary buffer: positions then indices [then colors].
     const std::size_t pos_bytes = pos_data.size() * sizeof(float);
     const std::size_t idx_bytes = idx_data.size() * sizeof(uint32_t);
-    std::vector<unsigned char> buf_data(pos_bytes + idx_bytes);
-    std::memcpy(buf_data.data(),             pos_data.data(), pos_bytes);
-    std::memcpy(buf_data.data() + pos_bytes, idx_data.data(), idx_bytes);
+    const std::size_t col_bytes = col_data.size() * sizeof(float);
+    std::vector<unsigned char> buf_data(pos_bytes + idx_bytes + col_bytes);
+    std::memcpy(buf_data.data(),                         pos_data.data(), pos_bytes);
+    std::memcpy(buf_data.data() + pos_bytes,             idx_data.data(), idx_bytes);
+    if (col_bytes > 0)
+        std::memcpy(buf_data.data() + pos_bytes + idx_bytes, col_data.data(), col_bytes);
 
     tinygltf::Model gltf;
     gltf.asset.version   = "2.0";
@@ -268,10 +380,31 @@ void write_glb(const Mesh& mesh, const std::filesystem::path& path)
     acc_idx.type          = TINYGLTF_TYPE_SCALAR;
     gltf.accessors.push_back(std::move(acc_idx));
 
+    // Accessor index 2 = COLOR_0 (only when colors are present).
+    if (has_colors)
+    {
+        tinygltf::BufferView bv_col;
+        bv_col.buffer     = 0;
+        bv_col.byteOffset = pos_bytes + idx_bytes;
+        bv_col.byteLength = col_bytes;
+        bv_col.target     = TINYGLTF_TARGET_ARRAY_BUFFER;
+        gltf.bufferViews.push_back(std::move(bv_col));
+
+        tinygltf::Accessor acc_col;
+        acc_col.bufferView    = 2;
+        acc_col.byteOffset    = 0;
+        acc_col.componentType = TINYGLTF_COMPONENT_TYPE_FLOAT;
+        acc_col.count         = sm.number_of_vertices();
+        acc_col.type          = TINYGLTF_TYPE_VEC3;
+        gltf.accessors.push_back(std::move(acc_col));
+    }
+
     tinygltf::Primitive prim;
     prim.attributes["POSITION"] = 0;
     prim.indices                 = 1;
     prim.mode                    = TINYGLTF_MODE_TRIANGLES;
+    if (has_colors)
+        prim.attributes["COLOR_0"] = 2;
 
     tinygltf::Mesh gmesh;
     gmesh.primitives.push_back(std::move(prim));

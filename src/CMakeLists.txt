@@ -20,6 +20,7 @@ add_library(modelrepair SHARED
     io/ObjIO.cpp
     io/ThreeMFIO.cpp
     io/GlbIO.cpp
+    io/PlyIO.cpp
     io/MeshIO.cpp
 )
 

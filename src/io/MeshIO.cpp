@@ -3,6 +3,7 @@
 #include "modelrepair/io/ObjIO.hpp"
 #include "modelrepair/io/ThreeMFIO.hpp"
 #include "modelrepair/io/GlbIO.hpp"
+#include "modelrepair/io/PlyIO.hpp"
 
 #include <algorithm>
 #include <stdexcept>
@@ -24,6 +25,7 @@ Mesh load(const std::filesystem::path& path)
     if (ext == ".obj")                    return read_obj(path);
     if (ext == ".3mf")                    return read_3mf(path);
     if (ext == ".glb" || ext == ".gltf")  return read_glb(path);
+    if (ext == ".ply")                    return read_ply(path);
     throw std::runtime_error("Unsupported file format '" + ext + "': " + path.string());
 }
 
@@ -34,6 +36,7 @@ void save(const Mesh& mesh, const std::filesystem::path& path, bool binary_stl)
     if (ext == ".obj") { write_obj(mesh, path); return; }
     if (ext == ".3mf") { write_3mf(mesh, path); return; }
     if (ext == ".glb" || ext == ".gltf") { write_glb(mesh, path); return; }
+    if (ext == ".ply") { write_ply(mesh, path); return; }
     throw std::runtime_error("Unsupported file format '" + ext + "': " + path.string());
 }
 

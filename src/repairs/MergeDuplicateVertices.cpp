@@ -1,13 +1,41 @@
 #include "modelrepair/RepairPipeline.hpp"
 #include "modelrepair/RepairReport.hpp"
 
+#include <CGAL/IO/Color.h>
 #include <CGAL/Polygon_mesh_processing/repair_polygon_soup.h>
 #include <CGAL/Polygon_mesh_processing/polygon_soup_to_polygon_mesh.h>
 #include <CGAL/Polygon_mesh_processing/orient_polygon_soup.h>
 
+#include <functional>
+#include <unordered_map>
 #include <vector>
 
 namespace PMP = CGAL::Polygon_mesh_processing;
+
+namespace
+{
+
+// Save "v:color" as a position→color lookup so it can survive the mesh rebuild.
+// Uses exact double equality for Point3 (EPICK stores coords as doubles).
+struct Point3Hash {
+    std::size_t operator()(const modelrepair::Point3& p) const noexcept {
+        const double x = CGAL::to_double(p.x());
+        const double y = CGAL::to_double(p.y());
+        const double z = CGAL::to_double(p.z());
+        std::size_t h = std::hash<double>{}(x);
+        h ^= std::hash<double>{}(y) + 0x9e3779b9u + (h << 6) + (h >> 2);
+        h ^= std::hash<double>{}(z) + 0x9e3779b9u + (h << 6) + (h >> 2);
+        return h;
+    }
+};
+struct Point3Equal {
+    bool operator()(const modelrepair::Point3& a, const modelrepair::Point3& b) const noexcept {
+        return a.x() == b.x() && a.y() == b.y() && a.z() == b.z();
+    }
+};
+using ColorByPos = std::unordered_map<modelrepair::Point3, CGAL::IO::Color, Point3Hash, Point3Equal>;
+
+} // namespace
 
 namespace modelrepair
 {
@@ -15,6 +43,18 @@ namespace modelrepair
 StepReport RepairPipeline::step_merge_vertices(Mesh& mesh)
 {
     StepReport sr;
+
+    // Preserve "v:color" property map across the soup rebuild.
+    ColorByPos pos_to_color;
+    {
+        auto cmap_opt = mesh.cgal().property_map<SurfMesh::Vertex_index, CGAL::IO::Color>("v:color");
+        if (cmap_opt.has_value())
+        {
+            const auto& cmap = cmap_opt.value();
+            for (auto v : mesh.cgal().vertices())
+                pos_to_color.emplace(mesh.cgal().point(v), cmap[v]);
+        }
+    }
 
     // Convert Surface_mesh to polygon soup for CGAL's soup repair functions.
     std::vector<Point3> points;
@@ -49,6 +89,22 @@ StepReport RepairPipeline::step_merge_vertices(Mesh& mesh)
 
     mesh.clear();
     PMP::polygon_soup_to_polygon_mesh(points, polygons, mesh.cgal());
+
+    // Re-attach vertex colors from the position lookup (if any were present).
+    if (!pos_to_color.empty())
+    {
+        auto [cmap, ok] = mesh.cgal().add_property_map<SurfMesh::Vertex_index, CGAL::IO::Color>(
+            "v:color", CGAL::IO::Color(128, 128, 128));
+        if (ok)
+        {
+            for (auto v : mesh.cgal().vertices())
+            {
+                auto it = pos_to_color.find(mesh.cgal().point(v));
+                if (it != pos_to_color.end())
+                    cmap[v] = it->second;
+            }
+        }
+    }
 
     return sr;
 }

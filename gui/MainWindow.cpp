@@ -390,7 +390,7 @@ void MainWindow::on_open_clicked()
 {
     QString path = QFileDialog::getOpenFileName(
         this, "Open mesh", {},
-        "Mesh files (*.stl *.obj *.3mf);;All files (*)");
+        "Mesh files (*.stl *.obj *.3mf *.ply);;All files (*)");
     if (!path.isEmpty())
         set_input(std::filesystem::path(path.toStdString()));
 }
@@ -543,7 +543,7 @@ void MainWindow::on_save_clicked()
 
     QString path = QFileDialog::getSaveFileName(
         this, "Save repaired mesh", suggestion,
-        "STL binary (*.stl);;OBJ (*.obj);;3MF (*.3mf);;All files (*)");
+        "STL binary (*.stl);;OBJ (*.obj);;3MF (*.3mf);;PLY (*.ply);;All files (*)");
     if (path.isEmpty())
         return;
 

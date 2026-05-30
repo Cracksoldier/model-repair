@@ -25,8 +25,8 @@ int main(int argc, char* argv[])
 
     // Positional args
     fs::path input_path, output_path;
-    app.add_option("INPUT",  input_path,  "Input mesh (.stl, .obj, .3mf, .glb, .gltf)")->required()->check(CLI::ExistingFile);
-    app.add_option("OUTPUT", output_path, "Output mesh (.stl, .obj, .3mf, .glb, .gltf)"); // optional with --diagnose
+    app.add_option("INPUT",  input_path,  "Input mesh (.stl, .obj, .3mf, .glb, .gltf, .ply)")->required()->check(CLI::ExistingFile);
+    app.add_option("OUTPUT", output_path, "Output mesh (.stl, .obj, .3mf, .glb, .gltf, .ply)"); // optional with --diagnose
 
     // Repair toggles
     RepairOptions opts;

@@ -1,8 +1,11 @@
 #include "modelrepair/io/ObjIO.hpp"
 
+#include <CGAL/IO/Color.h>
 #include <CGAL/Polygon_mesh_processing/polygon_soup_to_polygon_mesh.h>
 #include <CGAL/Polygon_mesh_processing/orient_polygon_soup.h>
 
+#include <algorithm>
+#include <cstdint>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -26,6 +29,8 @@ Mesh read_obj(const std::filesystem::path& path)
 
     std::vector<Point3> points;
     std::vector<std::vector<std::size_t>> polygons;
+    std::vector<CGAL::IO::Color> soup_colors;  // parallel to points; empty = no colors
+    bool any_color = false;
 
     std::string line;
     while (std::getline(f, line))
@@ -42,6 +47,23 @@ Mesh read_obj(const std::filesystem::path& path)
             double x, y, z;
             ss >> x >> y >> z;
             points.emplace_back(x, y, z);
+            // Some exporters (Meshlab, CloudCompare) write "v x y z r g b"
+            // with r/g/b in [0,1]. We collect them here; they are attached
+            // as a "v:color" property map after mesh construction.
+            double r, g, b;
+            if (ss >> r >> g >> b)
+            {
+                auto clamp_u8 = [](double v) -> std::uint8_t {
+                    return static_cast<std::uint8_t>(
+                        std::clamp(static_cast<int>(v * 255.0 + 0.5), 0, 255));
+                };
+                soup_colors.emplace_back(clamp_u8(r), clamp_u8(g), clamp_u8(b));
+                any_color = true;
+            }
+            else
+            {
+                soup_colors.emplace_back();  // neutral default
+            }
         }
         else if (token == "f")
         {
@@ -67,6 +89,19 @@ Mesh read_obj(const std::filesystem::path& path)
 
     Mesh mesh;
     PMP::polygon_soup_to_polygon_mesh(points, polygons, mesh.cgal());
+
+    // Attach vertex colors when at least one "v x y z r g b" line was seen.
+    if (any_color && soup_colors.size() == points.size())
+    {
+        auto [cmap, ok] = mesh.cgal().add_property_map<SurfMesh::Vertex_index, CGAL::IO::Color>(
+            "v:color", CGAL::IO::Color(128, 128, 128));
+        if (ok)
+        {
+            for (std::size_t i = 0; i < soup_colors.size(); ++i)
+                cmap[SurfMesh::Vertex_index(static_cast<SurfMesh::size_type>(i))] = soup_colors[i];
+        }
+    }
+
     return mesh;
 }
 
@@ -81,13 +116,27 @@ void write_obj(const Mesh& mesh, const std::filesystem::path& path)
 
     const auto& sm = mesh.cgal();
 
+    auto cmap_opt = sm.property_map<SurfMesh::Vertex_index, CGAL::IO::Color>("v:color");
+    const bool has_colors = cmap_opt.has_value();
+
     // Write vertices with stable index mapping.
     std::unordered_map<SurfMesh::Vertex_index, std::size_t> vmap;
     std::size_t idx = 1;
     for (auto v : sm.vertices())
     {
         const auto& p = sm.point(v);
-        f << "v " << p.x() << " " << p.y() << " " << p.z() << "\n";
+        if (has_colors)
+        {
+            const auto& c = cmap_opt.value()[v];
+            f << "v " << p.x() << " " << p.y() << " " << p.z()
+              << " " << (c.red()   / 255.0)
+              << " " << (c.green() / 255.0)
+              << " " << (c.blue()  / 255.0) << "\n";
+        }
+        else
+        {
+            f << "v " << p.x() << " " << p.y() << " " << p.z() << "\n";
+        }
         vmap[v] = idx++;
     }
 
