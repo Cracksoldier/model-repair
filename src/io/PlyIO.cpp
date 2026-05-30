@@ -34,6 +34,9 @@ Mesh read_ply(const std::filesystem::path& path)
     if (polygons.empty())
         throw std::runtime_error("No triangle geometry found in '" + path.string() + "'");
 
+    // Snapshot before orient_polygon_soup, which may append points for non-manifold fans.
+    const std::size_t n_vcolors = vcolors.size();
+    const std::size_t n_points_before_orient = points.size();
     PMP::orient_polygon_soup(points, polygons);
 
     Mesh mesh;
@@ -41,13 +44,13 @@ Mesh read_ply(const std::filesystem::path& path)
 
     // Attach vertex colors when the PLY file contained them.
     // After polygon_soup_to_polygon_mesh, Vertex_index(i) corresponds to points[i].
-    if (vcolors.size() == points.size())
+    if (n_vcolors > 0 && n_vcolors == n_points_before_orient)
     {
         auto [cmap, ok] = mesh.cgal().add_property_map<SurfMesh::Vertex_index, CGAL::IO::Color>(
             "v:color", CGAL::IO::Color(128, 128, 128));
         if (ok)
         {
-            for (std::size_t i = 0; i < vcolors.size(); ++i)
+            for (std::size_t i = 0; i < n_vcolors; ++i)
                 cmap[SurfMesh::Vertex_index(static_cast<SurfMesh::size_type>(i))] = vcolors[i];
         }
     }

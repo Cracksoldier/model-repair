@@ -150,6 +150,9 @@ void collect_colors(const tinygltf::Model& model, int acc_idx,
     const std::size_t stride = bv.byteStride ? bv.byteStride : n_comp * elem_bytes;
     const std::size_t base   = bv.byteOffset + acc.byteOffset;
 
+    if (vertex_count > 0 && base + (vertex_count - 1) * stride + n_comp * elem_bytes > buf.data.size())
+        return;  // accessor overruns buffer — skip silently
+
     if (soup_colors.size() < base_vertex + vertex_count)
         soup_colors.resize(base_vertex + vertex_count);
 
@@ -211,7 +214,7 @@ Mesh read_glb(const std::filesystem::path& path)
     std::vector<Point3> points;
     std::vector<std::vector<std::size_t>> polygons;
     std::vector<CGAL::IO::Color> soup_colors;
-    bool any_color = false;
+    std::size_t colored_vertex_count = 0;
 
     for (const auto& mesh : model.meshes)
     {
@@ -235,7 +238,7 @@ Mesh read_glb(const std::filesystem::path& path)
             if (col_it != prim.attributes.end())
             {
                 collect_colors(model, col_it->second, base, vertex_count, soup_colors);
-                any_color = true;
+                colored_vertex_count += vertex_count;
             }
         }
     }
@@ -243,17 +246,23 @@ Mesh read_glb(const std::filesystem::path& path)
     if (polygons.empty())
         throw std::runtime_error("No triangle geometry found in '" + path.string() + "'");
 
+    // Snapshot the pre-orient point count before orient_polygon_soup may append points.
+    const std::size_t n_points_before_orient = points.size();
     PMP::orient_polygon_soup(points, polygons);
     Mesh mesh;
     PMP::polygon_soup_to_polygon_mesh(points, polygons, mesh.cgal());
 
-    if (any_color && soup_colors.size() == points.size())
+    // Only attach colors when every primitive had COLOR_0 (no black contamination from
+    // uncolored primitives) and orient_polygon_soup did not add extra points.
+    if (colored_vertex_count > 0 &&
+        colored_vertex_count == n_points_before_orient &&
+        soup_colors.size() == n_points_before_orient)
     {
         auto [cmap, ok] = mesh.cgal().add_property_map<SurfMesh::Vertex_index, CGAL::IO::Color>(
             "v:color", CGAL::IO::Color(128, 128, 128));
         if (ok)
         {
-            for (std::size_t i = 0; i < soup_colors.size(); ++i)
+            for (std::size_t i = 0; i < colored_vertex_count; ++i)
                 cmap[SurfMesh::Vertex_index(static_cast<SurfMesh::size_type>(i))] = soup_colors[i];
         }
     }

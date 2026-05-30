@@ -30,7 +30,8 @@ Mesh read_obj(const std::filesystem::path& path)
     std::vector<Point3> points;
     std::vector<std::vector<std::size_t>> polygons;
     std::vector<CGAL::IO::Color> soup_colors;  // parallel to points; empty = no colors
-    bool any_color = false;
+    bool any_color  = false;  // true if at least one "v x y z r g b" line was seen
+    bool all_colors = true;   // false as soon as any "v x y z" line lacks rgb
 
     std::string line;
     while (std::getline(f, line))
@@ -62,7 +63,8 @@ Mesh read_obj(const std::filesystem::path& path)
             }
             else
             {
-                soup_colors.emplace_back();  // neutral default
+                soup_colors.emplace_back();  // placeholder (color-less vertex)
+                all_colors = false;
             }
         }
         else if (token == "f")
@@ -85,19 +87,23 @@ Mesh read_obj(const std::filesystem::path& path)
         }
     }
 
+    // Snapshot before orient_polygon_soup, which may append points for non-manifold fans.
+    const std::size_t n_points_before_orient = points.size();
+    const std::size_t n_colors = soup_colors.size();
     PMP::orient_polygon_soup(points, polygons);
 
     Mesh mesh;
     PMP::polygon_soup_to_polygon_mesh(points, polygons, mesh.cgal());
 
-    // Attach vertex colors when at least one "v x y z r g b" line was seen.
-    if (any_color && soup_colors.size() == points.size())
+    // Attach vertex colors only when every vertex had rgb (all_colors) and the
+    // soup had the expected size before orient added any extra points.
+    if (any_color && all_colors && n_colors == n_points_before_orient)
     {
         auto [cmap, ok] = mesh.cgal().add_property_map<SurfMesh::Vertex_index, CGAL::IO::Color>(
             "v:color", CGAL::IO::Color(128, 128, 128));
         if (ok)
         {
-            for (std::size_t i = 0; i < soup_colors.size(); ++i)
+            for (std::size_t i = 0; i < n_colors; ++i)
                 cmap[SurfMesh::Vertex_index(static_cast<SurfMesh::size_type>(i))] = soup_colors[i];
         }
     }
