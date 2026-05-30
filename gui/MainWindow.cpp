@@ -1,4 +1,5 @@
 #include "MainWindow.hpp"
+#include "timer_util.hpp"
 #include "BatchWindow.hpp"
 #include "PreviewWindow.hpp"
 #include "RepairWorker.hpp"
@@ -638,18 +639,10 @@ void MainWindow::set_busy(bool busy)
 
 void MainWindow::on_elapsed_tick()
 {
-    auto fmt = [](qint64 ms) -> QString {
-        qint64 s = ms / 1000;
-        return QString("%1:%2").arg(s / 60).arg(s % 60, 2, 10, QChar('0'));
-    };
-    const qint64 total_ms   = elapsed_clock_.elapsed();
-    const int    steps_done = progress_bar_->value();
-    const int    steps_tot  = progress_bar_->maximum();
-
-    QString right = "…"; // "…"
-    if (steps_done > 0 && steps_done < steps_tot)
-        right = "~" + fmt((total_ms / steps_done) * (steps_tot - steps_done));
-    elapsed_label_->setText(fmt(total_ms) + " / " + right);
+    elapsed_label_->setText(
+        gui::eta_text(elapsed_clock_.elapsed(),
+                      progress_bar_->value(),
+                      progress_bar_->maximum()));
 }
 
 } // namespace gui

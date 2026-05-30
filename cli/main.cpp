@@ -10,6 +10,7 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -28,6 +29,30 @@ static std::string fmt_ms(double ms)
     char buf[32];
     std::snprintf(buf, sizeof(buf), "%lld:%02lld", s / 60, s % 60);
     return buf;
+}
+
+static std::string json_escape(const std::string& s)
+{
+    std::string out;
+    out.reserve(s.size());
+    for (unsigned char c : s) {
+        switch (c) {
+        case '"':  out += "\\\""; break;
+        case '\\': out += "\\\\"; break;
+        case '\n': out += "\\n";  break;
+        case '\r': out += "\\r";  break;
+        case '\t': out += "\\t";  break;
+        default:
+            if (c < 0x20) {
+                char buf[8];
+                std::snprintf(buf, sizeof(buf), "\\u%04x", c);
+                out += buf;
+            } else {
+                out += static_cast<char>(c);
+            }
+        }
+    }
+    return out;
 }
 
 static int issues_fixed(const RepairReport& r)
@@ -108,7 +133,8 @@ static int run_single_file(
         modelrepair::StepReport sr;
         sr.name         = "Remesh";
         sr.was_run      = true;
-        sr.issues_fixed = static_cast<int>(rr.faces_after) - static_cast<int>(rr.faces_before);
+        const int remesh_delta = static_cast<int>(rr.faces_after) - static_cast<int>(rr.faces_before);
+        sr.issues_fixed = remesh_delta > 0 ? static_cast<std::size_t>(remesh_delta) : 0u;
         sr.duration_ms  = rr.duration_ms;
         report.steps.push_back(sr);
     }
@@ -163,10 +189,13 @@ static int run_single_file(
         modelrepair::StepReport sr;
         sr.name         = "Decimate";
         sr.was_run      = true;
-        sr.issues_fixed = static_cast<int>(dr.faces_before) - static_cast<int>(dr.faces_after);
+        const int dec_delta = static_cast<int>(dr.faces_before) - static_cast<int>(dr.faces_after);
+        sr.issues_fixed = dec_delta > 0 ? static_cast<std::size_t>(dec_delta) : 0u;
         sr.duration_ms  = dr.duration_ms;
         report.steps.push_back(sr);
-        report.triangles_after = mesh.num_faces();
+        report.triangles_after    = mesh.num_faces();
+        report.surface_area_after = mesh.surface_area();
+        report.volume_after       = mesh.volume();
     }
 
     // Print report
@@ -252,6 +281,7 @@ static int run_batch(
     const int total = static_cast<int>(inputs.size());
     std::vector<BatchResult> results;
     results.reserve(total);
+    int n_ok = 0, n_fail = 0;
 
     auto wall_start = std::chrono::steady_clock::now();
 
@@ -286,7 +316,8 @@ static int run_batch(
                 StepReport sr;
                 sr.name         = "Remesh";
                 sr.was_run      = true;
-                sr.issues_fixed = static_cast<int>(rr.faces_after) - static_cast<int>(rr.faces_before);
+                const int remesh_delta = static_cast<int>(rr.faces_after) - static_cast<int>(rr.faces_before);
+                sr.issues_fixed = remesh_delta > 0 ? static_cast<std::size_t>(remesh_delta) : 0u;
                 sr.duration_ms  = rr.duration_ms;
                 res.report.steps.push_back(sr);
             }
@@ -303,14 +334,26 @@ static int run_batch(
 
             if (decimate_ratio > 0.0 && !opts.diagnose_only)
             {
+                fs::path inter = out.parent_path()
+                               / (out.stem().string() + "_repaired" + out.extension().string());
+                try {
+                    modelrepair::io::save(mesh, inter, !ascii_stl);
+                    logger->info("Pre-decimate mesh saved to {}", inter.string());
+                } catch (const std::exception& e) {
+                    logger->warn("Could not save pre-decimate intermediate: {}", e.what());
+                }
+
                 auto dr = modelrepair::decimate(mesh, decimate_ratio);
                 StepReport sr;
                 sr.name         = "Decimate";
                 sr.was_run      = true;
-                sr.issues_fixed = static_cast<int>(dr.faces_before) - static_cast<int>(dr.faces_after);
+                const int dec_delta = static_cast<int>(dr.faces_before) - static_cast<int>(dr.faces_after);
+                sr.issues_fixed = dec_delta > 0 ? static_cast<std::size_t>(dec_delta) : 0u;
                 sr.duration_ms  = dr.duration_ms;
                 res.report.steps.push_back(sr);
-                res.report.triangles_after = mesh.num_faces();
+                res.report.triangles_after    = mesh.num_faces();
+                res.report.surface_area_after = mesh.surface_area();
+                res.report.volume_after       = mesh.volume();
             }
 
             if (!opts.diagnose_only)
@@ -330,13 +373,15 @@ static int run_batch(
             if (res.error.empty())
             {
                 const auto& r = res.report;
-                std::cout
-                    << "[" << (idx + 1) << "/" << total << "] "
-                    << in.filename().string()
-                    << "  →  " << out.filename().string()
-                    << "   " << fmt_ms(res.duration_ms)
-                    << "  " << (r.is_closed_after && r.is_manifold_after ? "✔ watertight" : "✘ open")
-                    << "  " << issues_fixed(r) << " issues fixed\n";
+                std::cout << "[" << (idx + 1) << "/" << total << "] "
+                          << in.filename().string();
+                if (opts.diagnose_only)
+                    std::cout << "  (diagnose only)";
+                else
+                    std::cout << "  →  " << out.filename().string();
+                std::cout << "   " << fmt_ms(res.duration_ms)
+                          << "  " << (r.is_closed_after && r.is_manifold_after ? "✔ watertight" : "✘ open")
+                          << "  " << issues_fixed(r) << " issues fixed\n";
             }
             else
             {
@@ -351,13 +396,9 @@ static int run_batch(
             std::cerr << "FAILED [" << in.string() << "]: " << res.error << "\n";
         }
 
+        if (res.error.empty()) ++n_ok; else ++n_fail;
         results.push_back(std::move(res));
     }
-
-    // Summary
-    int n_ok  = 0, n_fail = 0;
-    for (const auto& r : results)
-        r.error.empty() ? ++n_ok : ++n_fail;
 
     auto wall_ms = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - wall_start).count();
@@ -386,8 +427,8 @@ static int run_batch(
                 if (r.error.empty())
                     rf << r.report.format_json();
                 else
-                    rf << "{\"error\":\"" << r.error << "\",\"input\":\""
-                       << r.input_path.string() << "\"}";
+                    rf << "{\"error\":\"" << json_escape(r.error) << "\",\"input\":\""
+                       << json_escape(r.input_path.string()) << "\"}";
                 if (i + 1 < results.size()) rf << ",";
                 rf << "\n";
             }
@@ -408,7 +449,7 @@ int main(int argc, char* argv[])
 
     // Positional args (single-file mode)
     fs::path input_path, output_path;
-    app.add_option("INPUT",  input_path,  "Input mesh (.stl, .obj, .3mf, .glb, .gltf, .ply)")->check(CLI::ExistingFile);
+    app.add_option("INPUT",  input_path,  "Input mesh (.stl, .obj, .3mf, .glb, .gltf, .ply) — required in single-file mode")->check(CLI::ExistingFile);
     app.add_option("OUTPUT", output_path, "Output mesh (.stl, .obj, .3mf, .glb, .gltf, .ply)");
 
     // Repair toggles (shared by both single-file and batch modes)

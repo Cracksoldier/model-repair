@@ -1,4 +1,5 @@
 #include "WizardWindow.hpp"
+#include "timer_util.hpp"
 #include "WizardWorker.hpp"
 #include "MeshViewWidget.hpp"
 
@@ -1067,22 +1068,13 @@ void WizardWindow::on_cancel_clicked()
 
 void WizardWindow::on_elapsed_tick()
 {
-    auto fmt = [](qint64 ms) -> QString {
-        qint64 s = ms / 1000;
-        return QString("%1:%2").arg(s / 60).arg(s % 60, 2, 10, QChar('0'));
-    };
-    const qint64 total_ms   = elapsed_clock_.elapsed();
-    const int steps_done    = (current_phase_ == 1) ? page1_->steps_done()
-                            : (current_phase_ == 2) ? page2_->steps_done()
-                            :                         page3_->steps_done();
-    const int steps_tot     = (current_phase_ == 1) ? page1_->steps_total()
-                            : (current_phase_ == 2) ? page2_->steps_total()
-                            :                         page3_->steps_total();
-
-    QString right = "…"; // "…"
-    if (steps_done > 0 && steps_done < steps_tot)
-        right = "~" + fmt((total_ms / steps_done) * (steps_tot - steps_done));
-    const QString text = fmt(total_ms) + " / " + right;
+    const int done = (current_phase_ == 1) ? page1_->steps_done()
+                   : (current_phase_ == 2) ? page2_->steps_done()
+                   :                         page3_->steps_done();
+    const int tot  = (current_phase_ == 1) ? page1_->steps_total()
+                   : (current_phase_ == 2) ? page2_->steps_total()
+                   :                         page3_->steps_total();
+    const QString text = gui::eta_text(elapsed_clock_.elapsed(), done, tot);
     if      (current_phase_ == 1) page1_->set_elapsed(text);
     else if (current_phase_ == 2) page2_->set_elapsed(text);
     else                          page3_->set_elapsed(text);
