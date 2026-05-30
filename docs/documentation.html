@@ -309,6 +309,7 @@
       <div class="sidebar-section-label">For Developers</div>
       <a href="#api">Library API</a>
       <a href="#formats">File Formats</a>
+      <a href="#formats" class="sub">Vertex color (PLY / OBJ / GLB)</a>
       <a href="#architecture">Architecture</a>
     </div>
     <div class="sidebar-section">
@@ -1756,7 +1757,7 @@ modelrepair::SmoothResult modelrepair::smooth(
       <h3>Synopsis</h3>
       <pre><span class="cmd">model-repair</span> <span class="val">INPUT</span> [<span class="val">OUTPUT</span>] [<span class="flag">OPTIONS</span>]
 
-  <span class="val">INPUT</span>   Input mesh file (.stl, .obj, .3mf, .glb, .gltf) — must exist
+  <span class="val">INPUT</span>   Input mesh file (.stl, .obj, .3mf, .ply, .glb, .gltf) — must exist
   <span class="val">OUTPUT</span>  Output mesh file — required unless <span class="flag">--diagnose</span> is used</pre>
 
       <h3 id="cli-options" class="anchor">Options</h3>
@@ -1986,7 +1987,7 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
       <p>
         Click <strong>Save As…</strong> to open a save dialog. The output format is determined
         by the file extension you choose (.stl writes binary STL, .obj writes OBJ, .3mf writes 3MF,
-        .glb writes binary glTF, .gltf writes text glTF).
+        .ply writes binary LE PLY, .glb writes binary glTF, .gltf writes text glTF).
         The saved mesh is the decimated version if decimation was enabled.
       </p>
 
@@ -2263,7 +2264,7 @@ std::cout &lt;&lt; report.format_text();
 
       <h3>I/O</h3>
       <pre><span class="cmt">// Format is inferred from the file extension</span>
-Mesh mesh = modelrepair::io::load(<span class="str">"model.stl"</span>);   <span class="cmt">// .stl .obj .3mf .glb .gltf</span>
+Mesh mesh = modelrepair::io::load(<span class="str">"model.stl"</span>);   <span class="cmt">// .stl .obj .3mf .ply .glb .gltf</span>
 modelrepair::io::save(mesh, <span class="str">"out.3mf"</span>);           <span class="cmt">// binary STL by default</span>
 modelrepair::io::save(mesh, <span class="str">"out.stl"</span>, <span class="val">false</span>);     <span class="cmt">// false = ASCII STL</span>
 modelrepair::io::save(mesh, <span class="str">"out.glb"</span>);           <span class="cmt">// binary glTF 2.0</span></pre>
@@ -2336,8 +2337,8 @@ modelrepair::DecimateResult modelrepair::decimate(Mesh&amp; mesh, <span class="k
         not written on save.
       </p>
       <ul>
-        <li><strong>Read</strong>: Triangulated on load. Quads and higher-order polygons are not supported.</li>
-        <li><strong>Write</strong>: Plain triangulated OBJ, no materials.</li>
+        <li><strong>Read</strong>: Triangulated on load. Quads and higher-order polygons are not supported. Per-vertex RGB color is read when all <code>v</code> lines have the optional <code>r g b</code> suffix (Meshlab / CloudCompare extension); stored as a <code>"v:color"</code> property map.</li>
+        <li><strong>Write</strong>: Plain triangulated OBJ, no materials. When a <code>"v:color"</code> property map is present, each vertex line is written as <code>v x y z r g b</code> (r/g/b in [0,1]).</li>
       </ul>
 
       <h3>3MF (3D Manufacturing Format)</h3>
@@ -2360,9 +2361,20 @@ modelrepair::DecimateResult modelrepair::decimate(Mesh&amp; mesh, <span class="k
         v2.8.21 (fetched automatically by CMake).
       </p>
       <ul>
-        <li><strong>Read</strong>: Loads all triangle primitives from all meshes in the file. Non-triangle primitives and non-indexed geometry are skipped. Only geometry is imported; materials, textures, and node transforms are ignored.</li>
-        <li><strong>Write</strong>: Always writes binary GLB regardless of the extension passed to <code>write_glb</code>. Vertex positions are stored as VEC3 FLOAT; indices as SCALAR UNSIGNED_INT. A single mesh with one primitive is written; no materials or scene metadata beyond the default scene node.</li>
+        <li><strong>Read</strong>: Loads all triangle primitives from all meshes in the file. Non-triangle primitives and non-indexed geometry are skipped. Only geometry is imported; materials, textures, and node transforms are ignored. Per-vertex color is read from the <code>COLOR_0</code> accessor (VEC3/VEC4, FLOAT/UNSIGNED_BYTE/UNSIGNED_SHORT) when every primitive in the file has it; stored as a <code>"v:color"</code> property map.</li>
+        <li><strong>Write</strong>: Always writes binary GLB regardless of the extension passed to <code>write_glb</code>. Vertex positions are stored as VEC3 FLOAT; indices as SCALAR UNSIGNED_INT. When a <code>"v:color"</code> property map is present, a <code>COLOR_0</code> accessor (VEC3 FLOAT) is included. A single mesh with one primitive is written; no materials or scene metadata beyond the default scene node.</li>
         <li><strong>Note</strong>: stb_image is disabled at compile time — tinygltf is used in geometry-only mode.</li>
+      </ul>
+
+      <h3>PLY (Polygon File Format)</h3>
+      <p>
+        The standard format for 3D scanner and photogrammetry output (Meshlab, CloudCompare,
+        Open3D, COLMAP). Supports ASCII and binary (little-endian and big-endian) variants.
+        CGAL's <code>&lt;CGAL/IO/PLY.h&gt;</code> handles all three transparently — no extra dependency.
+      </p>
+      <ul>
+        <li><strong>Read</strong>: Parses the polygon soup using CGAL; orients and builds the half-edge mesh. Per-vertex RGB color is read when the PLY header declares <code>red</code>, <code>green</code>, <code>blue</code> vertex properties; stored as a <code>"v:color"</code> property map.</li>
+        <li><strong>Write</strong>: Binary little-endian PLY. Vertex data is <code>float x/y/z</code>, with optional <code>uchar red/green/blue</code> appended when a <code>"v:color"</code> property map is present. Faces are stored as <code>[count=3, uint i0, i1, i2]</code>.</li>
       </ul>
     </section>
 
@@ -2381,7 +2393,7 @@ modelrepair::DecimateResult modelrepair::decimate(Mesh&amp; mesh, <span class="k
 │                     Step 5: FillHoles            │
 │                     Step 6: RemoveSelfIsect      │
 │                                                  │
-│  MeshIO ──────────► StlIO / ObjIO / ThreeMFIO / GlbIO │
+│  MeshIO ──────────► StlIO / ObjIO / ThreeMFIO / PlyIO / GlbIO │
 └──────────────┬──────────────────────────────────┘
                │ links against
     ┌──────────┴──────────┐
