@@ -7,7 +7,9 @@ Ships as two frontends over a shared C++ library:
 - **`model-repair`** — command-line tool, scriptable and composable
 - **`model-repair-gui`** — Qt 6 desktop application with drag-and-drop, a per-step repair report, and a side-by-side 3D Before/After preview
 
-Supported formats: **STL** (binary + ASCII), **OBJ**, **3MF**.
+Supported formats: **STL** (binary + ASCII), **OBJ**, **3MF**, **PLY** (ASCII + binary LE/BE), **GLB/glTF**.
+
+Per-vertex RGB color is preserved round-trip for PLY, OBJ (the `v x y z r g b` extension), and GLB/glTF (`COLOR_0` attribute). UV/texture maps are out of scope.
 
 ---
 
@@ -138,7 +140,7 @@ cmake --build build/minimal -j$(nproc)
 ./build/debug/gui/model-repair-gui
 ```
 
-1. Drop an STL / OBJ / 3MF file onto the drop zone, or click **Open file…**
+1. Drop an STL / OBJ / 3MF / PLY / GLB file onto the drop zone, or click **Open file…**
 2. Adjust repair options if needed (all enabled by default)
 3. Click **Repair** — progress is shown per step in real time
 4. A **Before / After 3D preview window** opens automatically when repair completes — rotate with left-drag, pan with right-drag, zoom with scroll wheel; both views are camera-synced
@@ -180,7 +182,7 @@ model-repair INPUT OUTPUT [OPTIONS]
 model-repair INPUT OUTPUT [OPTIONS]
 
 Positional:
-  INPUT                         Input mesh (.stl, .obj, .3mf)
+  INPUT                         Input mesh (.stl, .obj, .3mf, .ply, .glb, .gltf)
   OUTPUT                        Output mesh (format inferred from extension)
 
 Repair steps (all enabled by default):
@@ -308,7 +310,7 @@ libmodelrepair.so              (shared library — LGPL-safe via dynamic linking
 ├── ShellSeparation            Connected-component detection, keep/split shells
 ├── RemoveInternalGeometry     Centroid inside-test, removes hidden faces
 ├── Subdivide                  Loop / Catmull-Clark mesh subdivision
-└── io/                        STL / OBJ / 3MF / GLB / GLTF readers and writers
+└── io/                        STL / OBJ / 3MF / PLY / GLB / GLTF readers and writers
 
 model-repair                   CLI frontend (links libmodelrepair)
 model-repair-gui               Qt 6 frontend (links libmodelrepair)
@@ -345,7 +347,7 @@ model-repair/
 │   ├── Remesh.hpp
 │   ├── Smooth.hpp
 │   ├── Decimate.hpp
-│   └── io/  StlIO.hpp  ObjIO.hpp  ThreeMFIO.hpp  MeshIO.hpp
+│   └── io/  StlIO.hpp  ObjIO.hpp  ThreeMFIO.hpp  GlbIO.hpp  PlyIO.hpp  MeshIO.hpp
 ├── src/                       Library implementation
 │   ├── repairs/               One .cpp per repair step + new analysis/processing
 │   ├── analysis/              WallThickness.cpp
