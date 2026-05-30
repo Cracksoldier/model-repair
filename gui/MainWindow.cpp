@@ -642,7 +642,14 @@ void MainWindow::on_elapsed_tick()
         qint64 s = ms / 1000;
         return QString("%1:%2").arg(s / 60).arg(s % 60, 2, 10, QChar('0'));
     };
-    elapsed_label_->setText(fmt(elapsed_clock_.elapsed()) + " / " + fmt(task_clock_.elapsed()));
+    const qint64 total_ms   = elapsed_clock_.elapsed();
+    const int    steps_done = progress_bar_->value();
+    const int    steps_tot  = progress_bar_->maximum();
+
+    QString right = "…"; // "…"
+    if (steps_done > 0 && steps_done < steps_tot)
+        right = "~" + fmt((total_ms / steps_done) * (steps_tot - steps_done));
+    elapsed_label_->setText(fmt(total_ms) + " / " + right);
 }
 
 } // namespace gui

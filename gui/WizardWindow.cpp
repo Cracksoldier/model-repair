@@ -155,6 +155,8 @@ public:
     }
 
     void set_elapsed(const QString& text) { elapsed_label_->setText(text); }
+    int steps_done()  const { return progress_->value(); }
+    int steps_total() const { return progress_->maximum(); }
 
     void show_preview(modelrepair::Mesh before, modelrepair::Mesh after,
                       const modelrepair::RepairReport& report)
@@ -362,6 +364,8 @@ public:
     }
 
     void set_elapsed(const QString& text) { elapsed_label_->setText(text); }
+    int steps_done()  const { return progress_->value(); }
+    int steps_total() const { return progress_->maximum(); }
 
     void show_preview(modelrepair::Mesh before, modelrepair::Mesh after,
                       const modelrepair::RepairReport&)
@@ -737,6 +741,8 @@ public:
     }
 
     void set_elapsed(const QString& text) { elapsed_label_->setText(text); }
+    int steps_done()  const { return progress_->value(); }
+    int steps_total() const { return progress_->maximum(); }
 
     void show_preview(modelrepair::Mesh before, modelrepair::Mesh after,
                       const modelrepair::RepairReport&)
@@ -1065,7 +1071,18 @@ void WizardWindow::on_elapsed_tick()
         qint64 s = ms / 1000;
         return QString("%1:%2").arg(s / 60).arg(s % 60, 2, 10, QChar('0'));
     };
-    const QString text = fmt(elapsed_clock_.elapsed()) + " / " + fmt(step_clock_.elapsed());
+    const qint64 total_ms   = elapsed_clock_.elapsed();
+    const int steps_done    = (current_phase_ == 1) ? page1_->steps_done()
+                            : (current_phase_ == 2) ? page2_->steps_done()
+                            :                         page3_->steps_done();
+    const int steps_tot     = (current_phase_ == 1) ? page1_->steps_total()
+                            : (current_phase_ == 2) ? page2_->steps_total()
+                            :                         page3_->steps_total();
+
+    QString right = "…"; // "…"
+    if (steps_done > 0 && steps_done < steps_tot)
+        right = "~" + fmt((total_ms / steps_done) * (steps_tot - steps_done));
+    const QString text = fmt(total_ms) + " / " + right;
     if      (current_phase_ == 1) page1_->set_elapsed(text);
     else if (current_phase_ == 2) page2_->set_elapsed(text);
     else                          page3_->set_elapsed(text);
