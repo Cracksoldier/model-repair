@@ -641,6 +641,7 @@ void MainWindow::on_elapsed_tick()
 {
     elapsed_label_->setText(
         gui::eta_text(elapsed_clock_.elapsed(),
+                      task_clock_.elapsed(),
                       progress_bar_->value(),
                       progress_bar_->maximum()));
 }

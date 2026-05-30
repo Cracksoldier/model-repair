@@ -1074,7 +1074,7 @@ void WizardWindow::on_elapsed_tick()
     const int tot  = (current_phase_ == 1) ? page1_->steps_total()
                    : (current_phase_ == 2) ? page2_->steps_total()
                    :                         page3_->steps_total();
-    const QString text = gui::eta_text(elapsed_clock_.elapsed(), done, tot);
+    const QString text = gui::eta_text(elapsed_clock_.elapsed(), step_clock_.elapsed(), done, tot);
     if      (current_phase_ == 1) page1_->set_elapsed(text);
     else if (current_phase_ == 2) page2_->set_elapsed(text);
     else                          page3_->set_elapsed(text);
