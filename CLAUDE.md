@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**GitHub:** https://github.com/Cracksoldier/model-repair
+
 ## Build
 
 ```bash
@@ -66,6 +68,14 @@ LD_LIBRARY_PATH=build/debug/src \
 # GUI
 build/debug/gui/model-repair-gui
 ```
+
+## Docs
+
+The public website lives in `docs/`:
+- `docs/index.html` — landing page (features, setup tabs, download button)
+- `docs/documentation.html` — full API and architecture reference
+
+Both are self-contained HTML files (no build step). The site is served via GitHub Pages from the `docs/` folder on `main`. All GitHub links use the slug `Cracksoldier/model-repair`.
 
 ## Release
 
