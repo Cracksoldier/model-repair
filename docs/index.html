@@ -187,7 +187,7 @@
       <li><a href="#setup">Setup</a></li>
     </ul>
     <a class="nav-doc-link" href="documentation.html">Documentation →</a>
-    <a class="nav-gh" href="https://github.com/Cracksoldier/3d-print-model-repair" target="_blank" rel="noopener">
+    <a class="nav-gh" href="https://github.com/Cracksoldier/model-repair" target="_blank" rel="noopener">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
         <path d="M12 2C6.477 2 2 6.484 2 12.021c0 4.428 2.865 8.184 6.839 9.504.5.092.682-.217.682-.482
           0-.237-.009-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466
@@ -219,11 +219,11 @@
       bad normals, open holes, and self-intersections — in a single pass.
     </p>
     <div class="hero-actions">
-      <a class="btn btn-primary" href="https://github.com/Cracksoldier/3d-print-model-repair/releases/latest" target="_blank" rel="noopener">
+      <a class="btn btn-primary" href="https://github.com/Cracksoldier/model-repair/releases/latest" target="_blank" rel="noopener">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.75 14A1.75 1.75 0 011 12.25v-2.5a.75.75 0 011.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 00.25-.25v-2.5a.75.75 0 011.5 0v2.5A1.75 1.75 0 0113.25 14H2.75zM7.25 7.689L4.03 4.469a.749.749 0 11-1.06 1.061l4.5 4.5a.75.75 0 001.06 0l4.5-4.5a.749.749 0 00-1.06-1.061L8.75 7.689V1.75a.75.75 0 00-1.5 0v5.939z"/></svg>
         Linux AppImage
       </a>
-      <a class="btn btn-primary" href="https://github.com/Cracksoldier/3d-print-model-repair/releases/latest" target="_blank" rel="noopener" style="background:var(--bg3);border:1px solid var(--border);">
+      <a class="btn btn-primary" href="https://github.com/Cracksoldier/model-repair/releases/latest" target="_blank" rel="noopener" style="background:var(--bg3);border:1px solid var(--border);">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.75 14A1.75 1.75 0 011 12.25v-2.5a.75.75 0 011.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 00.25-.25v-2.5a.75.75 0 011.5 0v2.5A1.75 1.75 0 0113.25 14H2.75zM7.25 7.689L4.03 4.469a.749.749 0 11-1.06 1.061l4.5 4.5a.75.75 0 001.06 0l4.5-4.5a.749.749 0 00-1.06-1.061L8.75 7.689V1.75a.75.75 0 00-1.5 0v5.939z"/></svg>
         Windows ZIP
       </a>
@@ -400,7 +400,7 @@
     <div id="tab-appimage" class="tab-panel active">
       <pre><button class="copy-btn">copy</button><span class="cmt"># Set the version tag from the Releases page, then download</span>
 <span class="val">VERSION</span>=v0.4.0
-<span class="cmd">wget</span> <span class="str">https://github.com/Cracksoldier/3d-print-model-repair/releases/download/<span class="val">${VERSION}</span>/model-repair-<span class="val">${VERSION}</span>-x86_64.AppImage</span>
+<span class="cmd">wget</span> <span class="str">https://github.com/Cracksoldier/model-repair/releases/download/<span class="val">${VERSION}</span>/model-repair-<span class="val">${VERSION}</span>-x86_64.AppImage</span>
 <span class="cmd">chmod</span> <span class="val">+x</span> model-repair-<span class="val">${VERSION}</span>-x86_64.AppImage
 
 <span class="cmt"># Launch the GUI</span>
@@ -412,13 +412,13 @@
       <p style="font-size:0.875rem;color:var(--muted);">
         The AppImage bundles Qt 6, libmodelrepair, and all dependencies. It runs on any x86-64 Linux with glibc ≥ 2.17.
         FUSE is <em>not</em> required — the AppImage self-extracts automatically.
-        Download links for each release are on the <a href="https://github.com/Cracksoldier/3d-print-model-repair/releases" target="_blank" rel="noopener">GitHub Releases page</a>.
+        Download links for each release are on the <a href="https://github.com/Cracksoldier/model-repair/releases" target="_blank" rel="noopener">GitHub Releases page</a>.
       </p>
     </div>
 
     <div id="tab-windows" class="tab-panel">
       <pre><button class="copy-btn">copy</button><span class="cmt"># Download the ZIP from the Releases page and extract it</span>
-<span class="cmt"># https://github.com/Cracksoldier/3d-print-model-repair/releases/latest</span>
+<span class="cmt"># https://github.com/Cracksoldier/model-repair/releases/latest</span>
 
 <span class="cmt"># The extracted folder is self-contained — no installer, no PATH changes needed.</span>
 <span class="cmt"># Double-click model-repair-gui.exe to open the GUI.</span>
@@ -456,7 +456,7 @@ model-repair.exe broken.stl repaired.stl <span class="flag">--verbose</span></pr
     </div>
 
     <pre><button class="copy-btn">copy</button><span class="cmt"># Clone and build</span>
-<span class="cmd">git clone</span> <span class="str">https://github.com/Cracksoldier/3d-print-model-repair.git</span>
+<span class="cmd">git clone</span> <span class="str">https://github.com/Cracksoldier/model-repair.git</span>
 <span class="cmd">cd</span> model-repair
 <span class="cmd">cmake --preset</span> <span class="val">release</span>          <span class="cmt"># downloads lib3mf, spdlog, CLI11, Catch2</span>
 <span class="cmd">cmake --build</span> build/release <span class="flag">-j$(nproc)</span>
@@ -502,8 +502,8 @@ model-repair.exe broken.stl repaired.stl <span class="flag">--verbose</span></pr
     <span>model-repair v0.4.0 — MIT License</span>
     <div class="footer-links">
       <a href="documentation.html">Documentation</a>
-      <a href="https://github.com/Cracksoldier/3d-print-model-repair" target="_blank" rel="noopener">GitHub</a>
-      <a href="https://github.com/Cracksoldier/3d-print-model-repair/issues" target="_blank" rel="noopener">Issues</a>
+      <a href="https://github.com/Cracksoldier/model-repair" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/Cracksoldier/model-repair/issues" target="_blank" rel="noopener">Issues</a>
     </div>
   </div>
 </footer>
