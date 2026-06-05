@@ -963,14 +963,37 @@ assert(report.diagnose_only == <span class="val">true</span>);</pre>
         a clean, watertight mesh is always the intermediate product.
       </p>
 
-      <h3>How it works</h3>
+      <h3>Backends</h3>
       <p>
-        Decimation uses CGAL's <code>Surface_mesh_simplification::edge_collapse()</code>
-        with <code>Face_count_ratio_stop_predicate</code>. The stop predicate targets a
-        fraction of the original face count: <code>ratio = 0.5</code> keeps approximately
-        50 % of faces. The exact final count depends on mesh topology — the simplifier
-        may stop slightly above the target if further collapses would violate the manifold
-        constraint.
+        Three decimation backends are available, selectable in the GUI, Batch window, and API:
+      </p>
+      <table>
+        <thead><tr><th>Backend</th><th>Algorithm</th><th>Extra parameters</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>CGAL</strong> (default)</td>
+            <td>Greedy edge-collapse with <code>Face_count_ratio_stop_predicate</code></td>
+            <td>—</td>
+            <td>Always available. In-place — preserves all property maps natively. May stop slightly above the target when further collapses would violate manifold constraints.</td>
+          </tr>
+          <tr>
+            <td><strong>MeshOptimizer</strong></td>
+            <td><code>meshopt_simplify()</code> — error-bounded simplification</td>
+            <td><strong>Max error</strong> (default 0.01) — the algorithm stops early if the next collapse would exceed this normalized error threshold</td>
+            <td>Often faster than CGAL on large meshes. Rebuilds via polygon soup; <code>"v:color"</code> is saved and restored. Requires <code>MODELREPAIR_ENABLE_MESHOPTIMIZER=ON</code> at build time.</td>
+          </tr>
+          <tr>
+            <td><strong>OpenMesh</strong></td>
+            <td>Quadric Error Metric (QEM) via <code>ModQuadricT</code></td>
+            <td><strong>Normal deviation limit</strong> (degrees, default 15°) — collapses that rotate a face normal by more than this amount are rejected by <code>ModNormalDeviationT</code>. Set to 180° to disable.</td>
+            <td>High-quality QEM simplification. Rebuilds via polygon soup; <code>"v:color"</code> is saved and restored. Requires <code>MODELREPAIR_ENABLE_OPENMESH=ON</code> at build time.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Passing an unavailable backend (not compiled in) silently falls back to CGAL with a
+        message on stderr. Use <code>decimate_meshoptimizer_available()</code> /
+        <code>decimate_openmesh_available()</code> to probe availability at runtime.
       </p>
 
       <h3>Intermediate save</h3>
@@ -984,33 +1007,52 @@ assert(report.diagnose_only == <span class="val">true</span>);</pre>
 <span class="cmd">model-repair</span> broken.stl out.stl <span class="flag">--decimate</span> <span class="val">0.5</span></pre>
 
       <h3>CLI</h3>
-      <pre><span class="cmd">model-repair</span> broken.stl out.stl <span class="flag">--decimate</span> <span class="val">0.5</span>       <span class="cmt"># keep 50 % of faces</span>
+      <pre><span class="cmd">model-repair</span> broken.stl out.stl <span class="flag">--decimate</span> <span class="val">0.5</span>       <span class="cmt"># keep 50 % of faces (CGAL backend)</span>
 <span class="cmd">model-repair</span> broken.stl out.stl <span class="flag">--decimate</span> <span class="val">0.25</span>      <span class="cmt"># keep 25 % of faces</span></pre>
-      <p>The ratio must be in <code>[0.01, 1.0]</code>. Exit code <span class="exit-code exit-err">5</span> is returned if decimation throws an exception.</p>
+      <p>The CLI always uses the CGAL backend. The ratio must be in <code>[0.01, 1.0]</code>. Exit code <span class="exit-code exit-err">5</span> is returned if decimation throws an exception.</p>
 
       <h3>GUI</h3>
       <p>
-        Check <strong>Decimate after repair</strong> in the options panel, then set the
-        <strong>Retain fraction</strong> spinbox (0.01–1.00, default 0.50). The intermediate
-        repaired mesh is not saved automatically from the GUI — only the decimated result
-        is available via <strong>Save As…</strong>.
+        Check <strong>Decimate after repair</strong> in the options panel, then configure:
+      </p>
+      <ul>
+        <li><strong>Retain fraction</strong> spinbox (0.01–1.00, default 0.50) — target fraction of faces to keep.</li>
+        <li><strong>Backend</strong> dropdown — selects CGAL, MeshOptimizer, or OpenMesh. Unavailable backends (not compiled in) are greyed out.</li>
+        <li><strong>Max error</strong> (MeshOptimizer only, default 0.01) and <strong>Normal deviation</strong> (OpenMesh only, degrees, default 15.0) — shown as a collapsible row when the relevant backend is selected.</li>
+      </ul>
+      <p>
+        These controls appear identically in both the <strong>Main Window</strong> and the
+        <strong>Batch Repair</strong> window; the batch window is pre-populated from the main
+        window's current options.
+        The intermediate repaired mesh is not saved automatically from the GUI — only the
+        decimated result is available via <strong>Save As…</strong>.
       </p>
 
       <h3>API</h3>
       <pre><span class="kw">#include</span> <span class="str">"modelrepair/Decimate.hpp"</span>
 
-<span class="cmt">// Run repair first</span>
-RepairPipeline({}).run(mesh);
-
-<span class="cmt">// Then decimate</span>
+<span class="cmt">// Simple overload — CGAL backend, ratio only</span>
 modelrepair::DecimateResult dr = modelrepair::decimate(mesh, <span class="val">0.5</span>);
+
+<span class="cmt">// Full overload with backend selection</span>
+modelrepair::DecimateParams params;
+params.backend      = modelrepair::DecimateBackend::MeshOptimizer;
+params.ratio        = <span class="val">0.5</span>;
+params.target_error = <span class="val">0.01</span>;   <span class="cmt">// MeshOptimizer only</span>
+dr = modelrepair::decimate(mesh, params);
+
 std::cout &lt;&lt; dr.faces_before &lt;&lt; <span class="str">" → "</span> &lt;&lt; dr.faces_after
-          &lt;&lt; <span class="str">" faces  ("</span> &lt;&lt; dr.duration_ms &lt;&lt; <span class="str">" ms)\n"</span>;</pre>
+          &lt;&lt; <span class="str">" ("</span> &lt;&lt; dr.duration_ms &lt;&lt; <span class="str">" ms, backend="</span>
+          &lt;&lt; static_cast&lt;<span class="kw">int</span>&gt;(dr.backend_used) &lt;&lt; <span class="str">")\n"</span>;
+
+<span class="cmt">// Probe availability (compile-time booleans exposed as runtime functions)</span>
+<span class="kw">bool</span> have_meshopt = modelrepair::decimate_meshoptimizer_available();
+<span class="kw">bool</span> have_om      = modelrepair::decimate_openmesh_available();</pre>
 
       <div class="callout warn">
         <strong><code>decimate()</code> can throw.</strong>
-        <code>SMS::edge_collapse()</code> may throw an exception on degenerate meshes.
-        Wrap the call in a try/catch if calling it from user code.
+        All three backends may throw on degenerate meshes.
+        Wrap calls in try/catch in production code.
       </div>
     </section>
 
@@ -1641,6 +1683,23 @@ std::vector&lt;double&gt; t = modelrepair::analyze_wall_thickness(mesh);
               <code>Vulkan::Vulkan</code>. Silently disabled if either Vulkan or
               <code>glslc</code> is missing.</td>
           </tr>
+          <tr>
+            <td><code>MODELREPAIR_ENABLE_MESHOPTIMIZER</code></td>
+            <td class="td-default">ON</td>
+            <td>Fetches meshoptimizer v0.22 via <code>FetchContent</code>; defines
+              <code>MODELREPAIR_HAVE_MESHOPTIMIZER</code> and links the static library.
+              Enables the <em>MeshOptimizer</em> decimation backend. Turn OFF to remove the
+              dependency entirely (CGAL and OpenMesh backends are unaffected).</td>
+          </tr>
+          <tr>
+            <td><code>MODELREPAIR_ENABLE_OPENMESH</code></td>
+            <td class="td-default">ON</td>
+            <td>Fetches the pinned OpenMesh commit via <code>FetchContent</code>; defines
+              <code>MODELREPAIR_HAVE_OPENMESH</code> and links <code>OpenMeshCore</code> +
+              <code>OpenMeshTools</code>. Enables the <em>OpenMesh (QEM)</em> decimation
+              backend. OpenMesh is LGPL-3.0 — linked dynamically. Turn OFF to remove the
+              dependency.</td>
+          </tr>
         </tbody>
       </table>
 
@@ -1940,6 +1999,9 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
           <tr><td>Remove internal geometry ☐</td><td><code>remove_internal_geometry</code></td><td>Off</td></tr>
           <tr><td>Decimate after repair ☐</td><td><code>decimate</code></td><td>Off</td></tr>
           <tr><td>Retain fraction (spinbox, enabled when Decimate ☑)</td><td><code>decimate_ratio</code></td><td>0.50</td></tr>
+          <tr><td>Backend (dropdown, enabled when Decimate ☑)</td><td><code>decimate_backend</code></td><td>CGAL</td></tr>
+          <tr><td>Max error (spinbox, MeshOptimizer backend only)</td><td><code>decimate_target_error</code></td><td>0.01</td></tr>
+          <tr><td>Normal deviation limit (spinbox, degrees, OpenMesh backend only)</td><td><code>decimate_normal_dev</code></td><td>15.0°</td></tr>
         </tbody>
       </table>
 
@@ -2154,7 +2216,7 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
       <ol>
         <li>Drag and drop multiple STL/OBJ/3MF/GLB/glTF files onto the file list, or use the <strong>Add Files…</strong> button. Remove selected entries with <strong>Remove</strong>.</li>
         <li>Output files are saved alongside each input file with a <code>_repaired</code> suffix by default. Click <strong>Browse…</strong> to choose a different output directory.</li>
-        <li>Configure repair options (same controls as the main window — applied to all files).</li>
+        <li>Configure repair options (same controls as the main window — applied to all files). This includes the full decimation backend selector: Retain fraction, Backend dropdown (CGAL / MeshOptimizer / OpenMesh), and backend-specific parameters (Max error for MeshOptimizer, Normal deviation for OpenMesh). The batch window is pre-populated with the main window's current options when opened.</li>
         <li>Click <strong>Start Repair</strong>. A status table shows each file's result: Filename / Status / Issues / Watertight / Time.</li>
         <li>Select a completed row and click <strong>Preview Selected</strong> to open a 3D before/after comparison for that file.</li>
         <li>Click <strong>Cancel</strong> to abort the batch after the current file finishes. The window cannot be closed while a repair is running.</li>
@@ -2224,6 +2286,9 @@ std::cout &lt;&lt; report.format_text();
           <tr><td><code>smooth_use_vulkan</code></td><td class="td-type">bool</td><td class="td-default">false</td><td>Use Vulkan GPU compute for smoothing. Requires <code>MODELREPAIR_HAVE_VULKAN</code> at build time and a compatible Vulkan device at runtime. Falls back to CPU if unavailable. See <a href="#perf-vulkan">Vulkan GPU compute</a>.</td></tr>
           <tr><td><code>decimate</code></td><td class="td-type">bool</td><td class="td-default">false</td><td>Apply post-repair decimation. Ignored when <code>diagnose_only</code> is true. Runs after smoothing.</td></tr>
           <tr><td><code>decimate_ratio</code></td><td class="td-type">double</td><td class="td-default">0.5</td><td>Target fraction of faces to retain after decimation (0.01–1.0).</td></tr>
+          <tr><td><code>decimate_backend</code></td><td class="td-type">DecimateBackend</td><td class="td-default">CGAL</td><td>Decimation algorithm: <code>CGAL</code>, <code>MeshOptimizer</code>, or <code>OpenMesh</code>. Falls back to CGAL if the requested backend was not compiled in.</td></tr>
+          <tr><td><code>decimate_target_error</code></td><td class="td-type">double</td><td class="td-default">0.01</td><td>MeshOptimizer backend only. Normalized error threshold; the simplifier stops early if the next collapse would exceed this value.</td></tr>
+          <tr><td><code>decimate_normal_dev</code></td><td class="td-type">double</td><td class="td-default">15.0</td><td>OpenMesh backend only. Maximum allowed face-normal rotation (degrees) per collapse. Set to 180 to disable.</td></tr>
           <tr><td><code>verbose</code></td><td class="td-type">bool</td><td class="td-default">false</td><td>Enable verbose logging inside the pipeline.</td></tr>
         </tbody>
       </table>
@@ -2292,17 +2357,38 @@ modelrepair::SmoothResult modelrepair::smooth(Mesh&amp; mesh, <span class="kw">u
         See <a href="#perf-vulkan">Vulkan GPU compute</a> for the full technical description.
       </p>
 
-      <h3>Decimate free function</h3>
+      <h3>Decimate free functions</h3>
       <pre><span class="kw">#include</span> <span class="str">"modelrepair/Decimate.hpp"</span>
 
-<span class="cmt">// DecimateResult fields: faces_before, faces_after, duration_ms</span>
-modelrepair::DecimateResult modelrepair::decimate(Mesh&amp; mesh, <span class="kw">double</span> ratio);</pre>
+<span class="cmt">// Simple overload — CGAL backend</span>
+modelrepair::DecimateResult modelrepair::decimate(Mesh&amp; mesh, <span class="kw">double</span> ratio);
+
+<span class="cmt">// Full overload — choose backend and per-backend parameters</span>
+modelrepair::DecimateResult modelrepair::decimate(Mesh&amp; mesh, <span class="kw">const</span> modelrepair::DecimateParams&amp; params);
+
+<span class="cmt">// Runtime availability probes (results reflect compile-time defines)</span>
+<span class="kw">bool</span> modelrepair::decimate_meshoptimizer_available();
+<span class="kw">bool</span> modelrepair::decimate_openmesh_available();</pre>
+
+      <h4>DecimateParams fields</h4>
+      <table>
+        <thead><tr><th>Field</th><th class="td-type">Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>backend</code></td><td class="td-type">DecimateBackend</td><td class="td-default">CGAL</td><td><code>CGAL</code>, <code>MeshOptimizer</code>, or <code>OpenMesh</code>.</td></tr>
+          <tr><td><code>ratio</code></td><td class="td-type">double</td><td class="td-default">0.5</td><td>Target fraction of faces to retain (0.01–1.0).</td></tr>
+          <tr><td><code>target_error</code></td><td class="td-type">double</td><td class="td-default">0.01</td><td>MeshOptimizer: normalized error threshold; early-stop if exceeded.</td></tr>
+          <tr><td><code>normal_deviation</code></td><td class="td-type">double</td><td class="td-default">15.0</td><td>OpenMesh: max face-normal rotation in degrees per collapse (180 = unlimited).</td></tr>
+        </tbody>
+      </table>
+
+      <h4>DecimateResult fields</h4>
       <table>
         <thead><tr><th>Field</th><th class="td-type">Type</th><th>Description</th></tr></thead>
         <tbody>
           <tr><td><code>faces_before</code></td><td class="td-type">size_t</td><td>Face count before decimation.</td></tr>
           <tr><td><code>faces_after</code></td><td class="td-type">size_t</td><td>Face count after decimation.</td></tr>
-          <tr><td><code>duration_ms</code></td><td class="td-type">double</td><td>Wall-clock time for the simplification.</td></tr>
+          <tr><td><code>duration_ms</code></td><td class="td-type">double</td><td>Wall-clock time covering the full operation including any polygon-soup conversion.</td></tr>
+          <tr><td><code>backend_used</code></td><td class="td-type">DecimateBackend</td><td>The backend that actually ran (may differ from requested if unavailable).</td></tr>
         </tbody>
       </table>
       <p>May throw <code>std::exception</code>. Wrap in try/catch in production code.</p>

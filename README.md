@@ -71,9 +71,14 @@ These are downloaded automatically by CMake at configure time via `FetchContent`
 | lib3mf | v2.4.1 | Apache-2.0 | 3MF file format (reference implementation) |
 | CLI11 | v2.4.2 | MIT | Command-line argument parsing |
 | spdlog | v1.15.3 | MIT | Structured logging and progress output |
+| tinygltf | v2.8.21 | MIT | GLB/glTF 2.0 mesh I/O (header-only) |
+| meshoptimizer | v0.22 | MIT | Fast error-bounded mesh simplification backend |
+| OpenMesh | commit `4e2e481` | LGPL-3.0 | QEM-based mesh simplification backend |
 | Catch2 | v3.8.1 | BSL-1.0 | Test framework (only if tests are enabled) |
 
 An internet connection is required on first configure. Subsequent configures use the CMake build cache.
+
+> **OpenMesh note:** OpenMesh is licensed LGPL-3.0 and linked dynamically into `libmodelrepair.so`. The decimation backends (MeshOptimizer and OpenMesh) can be individually disabled at configure time with `MODELREPAIR_ENABLE_MESHOPTIMIZER=OFF` / `MODELREPAIR_ENABLE_OPENMESH=OFF`.
 
 > **GCC 16 note:** lib3mf v2.4.1 is missing `#include <algorithm>` in several source files, which GCC 16 now requires explicitly. The file `cmake/patch_lib3mf_gcc16.cmake` is applied automatically via `FetchContent PATCH_COMMAND` and fixes all affected files transparently.
 
@@ -89,7 +94,7 @@ An internet connection is required on first configure. Subsequent configures use
 # 2. Clone or enter the project directory
 cd model-repair
 
-# 3. Configure — downloads lib3mf, CLI11, spdlog, Catch2 automatically
+# 3. Configure — downloads lib3mf, CLI11, spdlog, tinygltf, meshoptimizer, OpenMesh, Catch2 automatically
 cmake --preset debug
 
 # 4. Build everything (library + CLI + GUI + tests)
@@ -122,6 +127,10 @@ Pass these with `-D` if you configure manually instead of using a preset:
 | `MODELREPAIR_BUILD_GUI` | `ON` | Build the `model-repair-gui` Qt application |
 | `MODELREPAIR_BUILD_TESTS` | `ON` | Build the Catch2 test suite |
 | `MODELREPAIR_ENABLE_ASAN` | `OFF` | Enable AddressSanitizer + UBSan (debug builds) |
+| `MODELREPAIR_ENABLE_MESHOPTIMIZER` | `ON` | Fetch and compile the meshoptimizer decimation backend |
+| `MODELREPAIR_ENABLE_OPENMESH` | `ON` | Fetch and compile the OpenMesh (QEM) decimation backend |
+| `MODELREPAIR_ENABLE_TBB` | `ON` | Use Intel TBB for parallel CPU smoothing |
+| `MODELREPAIR_ENABLE_VULKAN` | `ON` | Build Vulkan GPU-accelerated smoothing |
 
 Example — library only, no GUI, no tests:
 
@@ -392,5 +401,8 @@ model-repair "$INPUT" "$REPAIRED" --verbose && bambu-studio "$REPAIRED"
 - **lib3mf**: Apache 2.0
 - **CLI11**: MIT
 - **spdlog**: MIT
+- **tinygltf**: MIT
+- **meshoptimizer**: MIT
+- **OpenMesh**: LGPL 3.0 — linked dynamically via `libmodelrepair.so`
 - **Catch2**: BSL-1.0
 - **Qt 6**: LGPL 3.0 — linked dynamically

@@ -338,7 +338,7 @@
       <a class="feature-card" href="documentation.html#decimate">
         <div class="feature-icon">🔺</div>
         <h3>Mesh Decimation</h3>
-        <p>Reduce polygon count after repair using CGAL Surface_mesh_simplification. The intermediate repaired mesh is saved automatically before decimation is applied.</p>
+        <p>Reduce polygon count after repair using your choice of three backends: CGAL edge-collapse, meshoptimizer (fast, error-bounded), or OpenMesh QEM. The intermediate repaired mesh is saved automatically before decimation is applied.</p>
         <span class="learn-more">Learn more →</span>
       </a>
 
@@ -468,10 +468,9 @@ model-repair.exe broken.stl repaired.stl <span class="flag">--verbose</span></pr
     <pre><button class="copy-btn">copy</button><span class="cmt"># Clone and build</span>
 <span class="cmd">git clone</span> <span class="str">https://github.com/Cracksoldier/model-repair.git</span>
 <span class="cmd">cd</span> model-repair
-<span class="cmd">cmake --preset</span> <span class="val">release</span>          <span class="cmt"># downloads lib3mf, spdlog, CLI11, Catch2</span>
+<span class="cmd">cmake --preset</span> <span class="val">release</span>          <span class="cmt"># downloads lib3mf, tinygltf, CLI11, spdlog, meshoptimizer, OpenMesh, Catch2</span>
 <span class="cmd">cmake --build</span> build/release <span class="flag">-j$(nproc)</span>
-<span class="cmt"># Binaries: build/release/cli/model-repair  and  build/release/gui/model-repair-gui</span>
-<span class="cmt"># Downloads: lib3mf, tinygltf, CLI11, spdlog, Catch2</span></pre>
+<span class="cmt"># Binaries: build/release/cli/model-repair  and  build/release/gui/model-repair-gui</span></pre>
 
     <div class="setup-run">
       <div>
