@@ -60,7 +60,7 @@ jobs:
       run: |
         cp -P AppDir/usr/lib/libmodelrepair.so* /usr/lib/
         cp -P build/_deps/lib3mf-build/lib3mf.so* /usr/lib/
-        find build/_deps/openmesh-build -name 'libOpenMesh*.so*' -exec cp -P {} /usr/lib/ \;
+        cp -P AppDir/usr/lib/libOpenMesh*.so* /usr/lib/
         ldconfig
 
     - name: Download linuxdeploy + Qt plugin

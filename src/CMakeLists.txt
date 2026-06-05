@@ -60,6 +60,8 @@ if(MODELREPAIR_ENABLE_OPENMESH AND TARGET OpenMeshCore)
     # OpenMesh uses directory-level include_directories that don't propagate via target linking
     target_include_directories(modelrepair PRIVATE ${openmesh_SOURCE_DIR}/src)
     target_compile_definitions(modelrepair PRIVATE MODELREPAIR_HAVE_OPENMESH)
+    install(TARGETS OpenMeshCore OpenMeshTools
+            LIBRARY DESTINATION lib COMPONENT Runtime)
 endif()
 
 if(TBB_FOUND AND MODELREPAIR_ENABLE_TBB)
