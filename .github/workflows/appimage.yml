@@ -60,7 +60,9 @@ jobs:
       run: |
         cp -P AppDir/usr/lib/libmodelrepair.so* /usr/lib/
         cp -P build/_deps/lib3mf-build/lib3mf.so* /usr/lib/
-        find build -name 'libOpenMesh*.so*' -exec cp -P {} /usr/lib/ \; -exec cp -P {} AppDir/usr/lib/ \;
+        # Register AppDir/usr/lib itself so ldd can resolve any FetchContent-built
+        # shared libraries (e.g. OpenMesh) that cmake --install placed there.
+        echo "$PWD/AppDir/usr/lib" > /etc/ld.so.conf.d/appdir.conf
         ldconfig
 
     - name: Download linuxdeploy + Qt plugin
