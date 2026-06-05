@@ -2277,7 +2277,7 @@ std::cout &lt;&lt; report.format_text();
           <tr><td><code>fill_holes</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Run step 5.</td></tr>
           <tr><td><code>max_hole_edges</code></td><td class="td-type">size_t</td><td class="td-default">0</td><td>Skip holes with more than N edges (0 = no limit).</td></tr>
           <tr><td><code>fill_holes_smooth</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Smooth refine (true) vs flat fan (false) for hole fill.</td></tr>
-          <tr><td><code>remove_self_intersections</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Run step 6 (slow, uses EPECK).</td></tr>
+          <tr><td><code>remove_self_intersections</code></td><td class="td-type">bool</td><td class="td-default">false</td><td>Run step 6 (slow, uses EPECK).</td></tr>
           <tr><td><code>remove_internal_geometry</code></td><td class="td-type">bool</td><td class="td-default">false</td><td>Run step 7 — centroid inside-test; requires a closed mesh. Skipped automatically if not closed.</td></tr>
           <tr><td><code>diagnose_only</code></td><td class="td-type">bool</td><td class="td-default">false</td><td>Run detection on a mesh copy; original is unchanged. See <a href="#diagnose">Diagnose Mode</a>.</td></tr>
           <tr><td><code>smooth</code></td><td class="td-type">bool</td><td class="td-default">false</td><td>Apply post-repair angle smoothing. Ignored when <code>diagnose_only</code> is true. Runs before decimation.</td></tr>
@@ -2330,8 +2330,8 @@ std::cout &lt;&lt; report.format_text();
       <h3>I/O</h3>
       <pre><span class="cmt">// Format is inferred from the file extension</span>
 Mesh mesh = modelrepair::io::load(<span class="str">"model.stl"</span>);   <span class="cmt">// .stl .obj .3mf .ply .glb .gltf</span>
-modelrepair::io::save(mesh, <span class="str">"out.3mf"</span>);           <span class="cmt">// binary STL by default</span>
-modelrepair::io::save(mesh, <span class="str">"out.stl"</span>, <span class="val">false</span>);     <span class="cmt">// false = ASCII STL</span>
+modelrepair::io::save(mesh, <span class="str">"out.3mf"</span>);           <span class="cmt">// format determined by extension</span>
+modelrepair::io::save(mesh, <span class="str">"out.stl"</span>, <span class="val">false</span>);     <span class="cmt">// false = ASCII STL (default is binary)</span>
 modelrepair::io::save(mesh, <span class="str">"out.glb"</span>);           <span class="cmt">// binary glTF 2.0</span></pre>
       <p>
         Per-format headers (<code>modelrepair/io/StlIO.hpp</code>, <code>ObjIO.hpp</code>,
