@@ -33,7 +33,7 @@ jobs:
           git cmake ninja base-devel \
           cgal eigen3 boost gmp mpfr \
           qt6-base \
-          wget fuse2 file
+          wget fuse2 file patchelf
 
     - uses: actions/checkout@v4
 
@@ -60,9 +60,10 @@ jobs:
       run: |
         cp -P AppDir/usr/lib/libmodelrepair.so* /usr/lib/
         cp -P build/_deps/lib3mf-build/lib3mf.so* /usr/lib/
-        # Register AppDir/usr/lib itself so ldd can resolve any FetchContent-built
-        # shared libraries (e.g. OpenMesh) that cmake --install placed there.
-        echo "$PWD/AppDir/usr/lib" > /etc/ld.so.conf.d/appdir.conf
+        # cmake --install clears RPATH on libmodelrepair.so, so ldd cannot
+        # transitively resolve libOpenMeshTools/Core from AppDir/usr/lib/.
+        # Restore $ORIGIN so linuxdeploy's ldd scan finds them in the same dir.
+        patchelf --add-rpath '$ORIGIN' AppDir/usr/lib/libmodelrepair.so
         ldconfig
 
     - name: Download linuxdeploy + Qt plugin
