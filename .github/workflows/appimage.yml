@@ -51,6 +51,11 @@ jobs:
     - name: Install into AppDir
       run: cmake --install build --prefix AppDir/usr --component Runtime
 
+    - name: Bundle license files
+      run: |
+        mkdir -p AppDir/usr/share/licenses/model-repair
+        cp LICENSE LICENSES/* AppDir/usr/share/licenses/model-repair/
+
     - name: Register custom libraries with the system linker
       run: |
         cp -P AppDir/usr/lib/libmodelrepair.so* /usr/lib/

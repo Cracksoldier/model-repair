@@ -75,6 +75,10 @@ jobs:
         [ -f build/_deps/lib3mf-build/lib3mf.dll ] && \
           cp build/_deps/lib3mf-build/lib3mf.dll "$DIST/"
 
+        # License files
+        mkdir -p "$DIST/LICENSES"
+        cp LICENSE LICENSES/* "$DIST/LICENSES/"
+
         # Qt DLLs, platform plugin, styles, imageformats, etc.
         /ucrt64/bin/windeployqt6 --no-translations "$DIST/model-repair-gui.exe"
 
