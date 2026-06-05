@@ -55,6 +55,7 @@ jobs:
     - name: Register custom libraries with the system linker
       run: |
         cp -P AppDir/usr/lib/libmodelrepair.so* /usr/lib/
+        cp -P AppDir/usr/lib/libOpenMesh*.so* /usr/lib/
         cp -P build/_deps/lib3mf-build/lib3mf.so* /usr/lib/
         ldconfig
 
