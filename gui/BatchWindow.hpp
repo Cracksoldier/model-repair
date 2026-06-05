@@ -11,6 +11,7 @@
 
 class QCheckBox;
 class QCloseEvent;
+class QComboBox;
 class QDoubleSpinBox;
 class QDragEnterEvent;
 class QDropEvent;
@@ -88,6 +89,11 @@ private:
     // Decimation option widgets
     QCheckBox*      chk_decimate_;
     QDoubleSpinBox* spin_decimate_ratio_;
+    QComboBox*      combo_decimate_backend_;
+    QLabel*         lbl_decimate_info_;
+    QWidget*        decimate_extra_params_;
+    QDoubleSpinBox* spin_decimate_target_error_;
+    QDoubleSpinBox* spin_decimate_normal_dev_;
 
     // Output directory
     QLabel*      lbl_output_dir_;

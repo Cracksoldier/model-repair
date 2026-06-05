@@ -67,8 +67,8 @@ option(MODELREPAIR_ENABLE_OPENMESH "Enable OpenMesh decimation backend" ON)
 if(MODELREPAIR_ENABLE_OPENMESH)
     FetchContent_Declare(openmesh
         GIT_REPOSITORY https://github.com/Lawrencemm/openmesh.git
-        GIT_TAG        master
-        GIT_SHALLOW    TRUE
+        GIT_TAG        4e2e481f438747d64e62899021da9f469fd9daf8
+        GIT_SHALLOW    FALSE
     )
     set(OPENMESH_BUILD_UNIT_TESTS       OFF CACHE BOOL "" FORCE)
     set(OPENMESH_BUILD_APPS             OFF CACHE BOOL "" FORCE)
