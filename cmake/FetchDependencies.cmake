@@ -45,6 +45,44 @@ set(TINYGLTF_INSTALL      OFF CACHE BOOL "" FORCE)
 set(TINYGLTF_HEADER_ONLY  ON  CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(tinygltf)
 
+# meshoptimizer — fast mesh simplification (MIT)
+option(MODELREPAIR_ENABLE_MESHOPTIMIZER "Enable meshoptimizer decimation backend" ON)
+if(MODELREPAIR_ENABLE_MESHOPTIMIZER)
+    FetchContent_Declare(meshoptimizer
+        GIT_REPOSITORY https://github.com/zeux/meshoptimizer.git
+        GIT_TAG        v0.22
+        GIT_SHALLOW    TRUE
+    )
+    set(MESHOPTIMIZER_BUILD_DEMO     OFF CACHE BOOL "" FORCE)
+    set(MESHOPTIMIZER_BUILD_GLTFPACK OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(meshoptimizer)
+    # meshoptimizer builds as a static library; set -fPIC so it can link into our .so
+    if(TARGET meshoptimizer)
+        set_target_properties(meshoptimizer PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    endif()
+endif()
+
+# OpenMesh — QEM-based decimation (LGPL-3.0)
+option(MODELREPAIR_ENABLE_OPENMESH "Enable OpenMesh decimation backend" ON)
+if(MODELREPAIR_ENABLE_OPENMESH)
+    FetchContent_Declare(openmesh
+        GIT_REPOSITORY https://github.com/Lawrencemm/openmesh.git
+        GIT_TAG        master
+        GIT_SHALLOW    TRUE
+    )
+    set(OPENMESH_BUILD_UNIT_TESTS       OFF CACHE BOOL "" FORCE)
+    set(OPENMESH_BUILD_APPS             OFF CACHE BOOL "" FORCE)
+    set(OPENMESH_BUILD_PYTHON_BINDINGS  OFF CACHE BOOL "" FORCE)
+    # OpenMesh's CMakeLists.txt uses cmake_minimum_required < 3.5; CMake 4.x requires this override.
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.0")
+        set(CMAKE_POLICY_VERSION_MINIMUM "3.5")
+    endif()
+    FetchContent_MakeAvailable(openmesh)
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.0")
+        unset(CMAKE_POLICY_VERSION_MINIMUM)
+    endif()
+endif()
+
 # Catch2 — test framework (BSL-1.0)
 if(MODELREPAIR_BUILD_TESTS)
     FetchContent_Declare(Catch2

@@ -206,7 +206,12 @@ void RepairWorker::run()
         modelrepair::DecimateResult dr;
         try
         {
-            dr = modelrepair::decimate(mesh, opts_.decimate_ratio);
+            modelrepair::DecimateParams dp;
+            dp.backend          = opts_.decimate_backend;
+            dp.ratio            = opts_.decimate_ratio;
+            dp.target_error     = opts_.decimate_target_error;
+            dp.normal_deviation = opts_.decimate_normal_dev;
+            dr = modelrepair::decimate(mesh, dp);
         }
         catch (const std::exception& e)
         {

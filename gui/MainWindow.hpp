@@ -13,6 +13,7 @@
 #include <memory>
 #include <optional>
 
+class QComboBox;
 class QLabel;
 class QPushButton;
 class QProgressBar;
@@ -93,6 +94,11 @@ private:
     // Decimation option widgets
     QCheckBox*      chk_decimate_;
     QDoubleSpinBox* spin_decimate_ratio_;
+    QComboBox*      combo_decimate_backend_;
+    QLabel*         lbl_decimate_info_;
+    QWidget*        decimate_extra_params_;
+    QDoubleSpinBox* spin_decimate_target_error_;
+    QDoubleSpinBox* spin_decimate_normal_dev_;
 
     // Actions
     QPushButton* btn_repair_;

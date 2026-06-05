@@ -49,6 +49,19 @@ target_link_libraries(modelrepair
         modelrepair_warnings
 )
 
+if(MODELREPAIR_ENABLE_MESHOPTIMIZER AND TARGET meshoptimizer)
+    target_link_libraries(modelrepair PRIVATE meshoptimizer)
+    target_compile_definitions(modelrepair PRIVATE MODELREPAIR_HAVE_MESHOPTIMIZER)
+endif()
+
+if(MODELREPAIR_ENABLE_OPENMESH AND TARGET OpenMeshCore)
+    # OpenMeshTools (DecimaterT, ModQuadricT etc.) depends on OpenMeshCore
+    target_link_libraries(modelrepair PRIVATE OpenMeshCore OpenMeshTools)
+    # OpenMesh uses directory-level include_directories that don't propagate via target linking
+    target_include_directories(modelrepair PRIVATE ${openmesh_SOURCE_DIR}/src)
+    target_compile_definitions(modelrepair PRIVATE MODELREPAIR_HAVE_OPENMESH)
+endif()
+
 if(TBB_FOUND AND MODELREPAIR_ENABLE_TBB)
     target_link_libraries(modelrepair PRIVATE TBB::tbb)
     target_compile_definitions(modelrepair PRIVATE MODELREPAIR_HAVE_TBB)

@@ -49,7 +49,7 @@ private slots:
     void on_phase2_skip();
     void on_phase2_continue();
     void on_phase2_finish();
-    void on_phase3_run(double ratio);
+    void on_phase3_run(double ratio, int backend_index, double target_error, double normal_deviation);
     void on_phase3_retry();
     void on_phase3_skip();
     void on_phase3_save();

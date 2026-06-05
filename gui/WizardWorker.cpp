@@ -30,9 +30,15 @@ WizardWorker::WizardWorker(modelrepair::Mesh mesh,
     , subdivide_iters_(subdivide_iters)
 {}
 
-WizardWorker::WizardWorker(modelrepair::Mesh mesh, double decimate_ratio, QObject* parent)
+WizardWorker::WizardWorker(modelrepair::Mesh mesh, double decimate_ratio,
+                            modelrepair::DecimateBackend backend,
+                            double target_error, double normal_deviation,
+                            QObject* parent)
     : QObject(parent), phase_(Phase::Decimate), mesh_(std::move(mesh))
     , decimate_ratio_(decimate_ratio)
+    , decimate_backend_(backend)
+    , decimate_target_error_(target_error)
+    , decimate_normal_dev_(normal_deviation)
 {}
 
 void WizardWorker::run()
@@ -142,12 +148,17 @@ void WizardWorker::run()
     {
         emit progressChanged(1, 1, "Decimating");
         try {
-            auto dr = modelrepair::decimate(mesh_, decimate_ratio_);
+            modelrepair::DecimateParams dp;
+            dp.backend          = decimate_backend_;
+            dp.ratio            = decimate_ratio_;
+            dp.target_error     = decimate_target_error_;
+            dp.normal_deviation = decimate_normal_dev_;
+            auto dr = modelrepair::decimate(mesh_, dp);
             modelrepair::StepReport sr;
-            sr.name        = "Decimate";
-            sr.was_run     = true;
+            sr.name         = "Decimate";
+            sr.was_run      = true;
             sr.issues_fixed = static_cast<int>(dr.faces_before) - static_cast<int>(dr.faces_after);
-            sr.duration_ms = dr.duration_ms;
+            sr.duration_ms  = dr.duration_ms;
             report.steps.push_back(sr);
         } catch (const std::exception& e) {
             emit finished(std::move(mesh_), {}, QString("Decimation failed: ") + e.what());

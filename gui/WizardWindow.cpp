@@ -3,6 +3,7 @@
 #include "WizardWorker.hpp"
 #include "MeshViewWidget.hpp"
 
+#include "modelrepair/Decimate.hpp"
 #include "modelrepair/RepairOptions.hpp"
 #include "modelrepair/Smooth.hpp"
 #include "modelrepair/io/MeshIO.hpp"
@@ -27,6 +28,7 @@
 #include <QWidget>
 
 #include <QCloseEvent>
+#include <QStandardItemModel>
 
 #include <memory>
 #include <optional>
@@ -761,7 +763,7 @@ public:
     }
 
 signals:
-    void run_clicked(double ratio);
+    void run_clicked(double ratio, int backend_index, double target_error, double normal_deviation);
     void retry_clicked();
     void skip_clicked();
     void save_clicked();
@@ -816,6 +818,94 @@ private:
         dg_layout->addWidget(info_label(
             "Fraction of triangles to keep. 0.5 = half, 0.25 = quarter. "
             "Lower values reduce detail; 0.7 – 0.8 is usually imperceptible."));
+
+        // Backend selector
+        {
+            auto* brow = new QHBoxLayout;
+            brow->addWidget(new QLabel("Backend:"));
+            combo_backend_ = new QComboBox;
+            combo_backend_->addItem("CGAL (accurate, slow)");
+            combo_backend_->addItem("MeshOptimizer (fast)");
+            combo_backend_->addItem("OpenMesh (classic QEM)");
+            // Disable items for backends not compiled in
+            auto disable_item = [](QComboBox* cb, int idx) {
+                auto* m = qobject_cast<QStandardItemModel*>(cb->model());
+                if (m) m->item(idx)->setFlags(Qt::NoItemFlags);
+            };
+            if (!modelrepair::decimate_meshoptimizer_available()) disable_item(combo_backend_, 1);
+            if (!modelrepair::decimate_openmesh_available())      disable_item(combo_backend_, 2);
+            brow->addWidget(combo_backend_);
+            brow->addStretch();
+            dg_layout->addLayout(brow);
+        }
+
+        lbl_backend_info_ = info_label("");
+        dg_layout->addWidget(lbl_backend_info_);
+
+        // Backend-specific parameter widgets
+        backend_params_ = new QWidget;
+        {
+            auto* bpv = new QVBoxLayout(backend_params_);
+            bpv->setContentsMargins(0, 0, 0, 0);
+            bpv->setSpacing(2);
+
+            auto* err_row = new QHBoxLayout;
+            err_row->addWidget(new QLabel("Max error (meshopt):"));
+            spin_target_error_ = new QDoubleSpinBox;
+            spin_target_error_->setRange(0.0001, 1.0);
+            spin_target_error_->setSingleStep(0.005);
+            spin_target_error_->setDecimals(4);
+            spin_target_error_->setValue(0.01);
+            err_row->addWidget(spin_target_error_);
+            err_row->addStretch();
+            auto* err_container = new QWidget;
+            err_container->setLayout(err_row);
+            bpv->addWidget(err_container);
+            bpv->addWidget(info_label(
+                "Relative error budget. 0.01 is a good default; larger values allow "
+                "more shape deviation in exchange for higher reduction."));
+
+            auto* nd_row = new QHBoxLayout;
+            nd_row->addWidget(new QLabel("Normal deviation (°):"));
+            spin_normal_dev_ = new QDoubleSpinBox;
+            spin_normal_dev_->setRange(1.0, 90.0);
+            spin_normal_dev_->setSingleStep(1.0);
+            spin_normal_dev_->setDecimals(1);
+            spin_normal_dev_->setValue(15.0);
+            nd_row->addWidget(spin_normal_dev_);
+            nd_row->addStretch();
+            auto* nd_container = new QWidget;
+            nd_container->setLayout(nd_row);
+            bpv->addWidget(nd_container);
+            bpv->addWidget(info_label(
+                "Maximum change in face-normal direction per collapse. "
+                "Lower values better preserve sharp features."));
+
+            // Initial visibility — both hidden until backend changes
+            err_container->setVisible(false);
+            nd_container->setVisible(false);
+            backend_params_->setVisible(false);
+
+            // Wire backend combo → update info text and show/hide param rows
+            connect(combo_backend_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                    this, [this, err_container, nd_container](int idx) {
+                static const char* desc[] = {
+                    "CGAL edge_collapse: topology-preserving, exact arithmetic. "
+                        "Best quality, but slow on meshes above 100k faces.",
+                    "MeshOptimizer: fast C-library simplification. "
+                        "Ideal for large meshes — typically 10–50× faster than CGAL.",
+                    "OpenMesh DecimaterT + ModQuadricT: well-tested QEM decimation. "
+                        "Normal deviation limits angular change per edge collapse."
+                };
+                lbl_backend_info_->setText(idx >= 0 && idx < 3 ? desc[idx] : "");
+                err_container->setVisible(idx == 1);
+                nd_container->setVisible(idx == 2);
+                backend_params_->setVisible(idx == 1 || idx == 2);
+            });
+            combo_backend_->setCurrentIndex(0);
+        }
+        dg_layout->addWidget(backend_params_);
+
         vbox->addWidget(dec_group);
         vbox->addStretch();
 
@@ -825,7 +915,10 @@ private:
         btn_run->setDefault(true);
         connect(btn_skip, &QPushButton::clicked, this, &Phase3Page::skip_clicked);
         connect(btn_run,  &QPushButton::clicked, this, [this] {
-            emit run_clicked(spin_ratio_->value());
+            emit run_clicked(spin_ratio_->value(),
+                             combo_backend_->currentIndex(),
+                             spin_target_error_->value(),
+                             spin_normal_dev_->value());
         });
         btn_row->addWidget(btn_skip);
         btn_row->addStretch();
@@ -896,6 +989,13 @@ private:
     QLabel*         analysis_time_     = nullptr;
     QLabel*         analysis_open_warn_= nullptr;
     QDoubleSpinBox* spin_ratio_        = nullptr;
+
+    // Backend selector widgets
+    QComboBox*      combo_backend_      = nullptr;
+    QLabel*         lbl_backend_info_   = nullptr;
+    QWidget*        backend_params_     = nullptr;
+    QDoubleSpinBox* spin_target_error_  = nullptr;
+    QDoubleSpinBox* spin_normal_dev_    = nullptr;
 
     std::optional<modelrepair::Mesh> before_mesh_;
     std::optional<modelrepair::Mesh> after_mesh_;
@@ -1124,11 +1224,13 @@ void WizardWindow::on_phase2_finish()   { try_save_and_accept(); }
 
 // ─── Phase 3 handlers ─────────────────────────────────────────────────────────
 
-void WizardWindow::on_phase3_run(double ratio)
+void WizardWindow::on_phase3_run(double ratio, int backend_index,
+                                  double target_error, double normal_deviation)
 {
+    const auto backend = static_cast<modelrepair::DecimateBackend>(backend_index);
     phase_start_mesh_ = current_mesh_;
     page3_->show_running();
-    auto* worker = new WizardWorker(current_mesh_, ratio);
+    auto* worker = new WizardWorker(current_mesh_, ratio, backend, target_error, normal_deviation);
     start_worker_thread(worker);
 }
 

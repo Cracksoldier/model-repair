@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Decimate.hpp"
 #include <cstddef>
 
 namespace modelrepair
@@ -43,8 +44,11 @@ struct RepairOptions
     bool         smooth_use_vulkan   = false;  // GPU path; requires MODELREPAIR_HAVE_VULKAN
 
     // Post-repair decimation
-    bool   decimate       = false;
-    double decimate_ratio = 0.5;   // fraction of faces to retain (0 < ratio ≤ 1)
+    bool            decimate              = false;
+    double          decimate_ratio        = 0.5;    // fraction of faces to retain (0 < ratio ≤ 1)
+    DecimateBackend decimate_backend      = DecimateBackend::CGAL;
+    double          decimate_target_error = 0.01;   // meshoptimizer only
+    double          decimate_normal_dev   = 15.0;   // OpenMesh only (degrees)
 
     // Diagnose only — run detection without modifying the mesh
     bool   diagnose_only  = false;

@@ -7,6 +7,7 @@
 #include "WizardWindow.hpp"
 
 #include <QCheckBox>
+#include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QFileDialog>
 #include <QGroupBox>
@@ -17,12 +18,14 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QStandardItemModel>
 #include <QThread>
 #include <QTimer>
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include "modelrepair/Decimate.hpp"
 #include "modelrepair/io/MeshIO.hpp"
 #include "modelrepair/Smooth.hpp"
 #include "modelrepair/ShellSeparation.hpp"
@@ -184,20 +187,109 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     // Decimation
     chk_decimate_ = make_check("Decimate after repair", false);
     {
+        // Retain fraction row
         auto* row = new QHBoxLayout;
-        auto* lbl = new QLabel("  Retain fraction:");
+        row->addWidget(new QLabel("  Retain fraction:"));
         spin_decimate_ratio_ = new QDoubleSpinBox;
         spin_decimate_ratio_->setRange(0.01, 1.0);
         spin_decimate_ratio_->setSingleStep(0.05);
         spin_decimate_ratio_->setDecimals(2);
         spin_decimate_ratio_->setValue(0.5);
         spin_decimate_ratio_->setEnabled(false);
-        row->addWidget(lbl);
         row->addWidget(spin_decimate_ratio_);
         row->addStretch();
         grp_layout->addLayout(row);
         connect(chk_decimate_, &QCheckBox::toggled,
                 spin_decimate_ratio_, &QDoubleSpinBox::setEnabled);
+
+        // Backend selector row
+        auto* brow = new QHBoxLayout;
+        brow->addWidget(new QLabel("  Backend:"));
+        combo_decimate_backend_ = new QComboBox;
+        combo_decimate_backend_->addItem("CGAL (accurate, slow)");
+        combo_decimate_backend_->addItem("MeshOptimizer (fast)");
+        combo_decimate_backend_->addItem("OpenMesh (classic QEM)");
+        combo_decimate_backend_->setEnabled(false);
+        // Disable items for backends not compiled in
+        auto disable_item = [](QComboBox* cb, int idx) {
+            auto* m = qobject_cast<QStandardItemModel*>(cb->model());
+            if (m) m->item(idx)->setFlags(Qt::NoItemFlags);
+        };
+        if (!modelrepair::decimate_meshoptimizer_available()) disable_item(combo_decimate_backend_, 1);
+        if (!modelrepair::decimate_openmesh_available())      disable_item(combo_decimate_backend_, 2);
+        brow->addWidget(combo_decimate_backend_);
+        brow->addStretch();
+        grp_layout->addLayout(brow);
+        connect(chk_decimate_, &QCheckBox::toggled,
+                combo_decimate_backend_, &QComboBox::setEnabled);
+
+        // Info label
+        lbl_decimate_info_ = new QLabel;
+        lbl_decimate_info_->setWordWrap(true);
+        lbl_decimate_info_->setStyleSheet("color: #666; font-size: 11px; margin-left: 22px;");
+        grp_layout->addWidget(lbl_decimate_info_);
+
+        // Backend-specific params container
+        decimate_extra_params_ = new QWidget;
+        {
+            auto* epv = new QVBoxLayout(decimate_extra_params_);
+            epv->setContentsMargins(22, 0, 0, 0);
+            epv->setSpacing(2);
+
+            auto* err_row = new QHBoxLayout;
+            err_row->addWidget(new QLabel("Max error (meshopt):"));
+            spin_decimate_target_error_ = new QDoubleSpinBox;
+            spin_decimate_target_error_->setRange(0.0001, 1.0);
+            spin_decimate_target_error_->setSingleStep(0.005);
+            spin_decimate_target_error_->setDecimals(4);
+            spin_decimate_target_error_->setValue(0.01);
+            err_row->addWidget(spin_decimate_target_error_);
+            err_row->addStretch();
+            auto* err_container = new QWidget;
+            err_container->setLayout(err_row);
+            epv->addWidget(err_container);
+
+            auto* nd_row = new QHBoxLayout;
+            nd_row->addWidget(new QLabel("Normal deviation (°):"));
+            spin_decimate_normal_dev_ = new QDoubleSpinBox;
+            spin_decimate_normal_dev_->setRange(1.0, 90.0);
+            spin_decimate_normal_dev_->setSingleStep(1.0);
+            spin_decimate_normal_dev_->setDecimals(1);
+            spin_decimate_normal_dev_->setValue(15.0);
+            nd_row->addWidget(spin_decimate_normal_dev_);
+            nd_row->addStretch();
+            auto* nd_container = new QWidget;
+            nd_container->setLayout(nd_row);
+            epv->addWidget(nd_container);
+
+            err_container->setVisible(false);
+            nd_container->setVisible(false);
+            decimate_extra_params_->setVisible(false);
+
+            // Wire backend combo → info text + param visibility
+            auto update_backend_ui = [this, err_container, nd_container](int idx) {
+                static const char* desc[] = {
+                    "CGAL edge_collapse: exact arithmetic, best quality. "
+                        "Slow on meshes above 100k faces.",
+                    "MeshOptimizer: fast C-library simplification. "
+                        "Max error controls the quality/speed trade-off.",
+                    "OpenMesh DecimaterT + ModQuadricT: well-tested QEM. "
+                        "Normal deviation limits angular change per collapse."
+                };
+                lbl_decimate_info_->setText(idx >= 0 && idx < 3 ? desc[idx] : "");
+                err_container->setVisible(idx == 1);
+                nd_container->setVisible(idx == 2);
+                decimate_extra_params_->setVisible(chk_decimate_->isChecked() && (idx == 1 || idx == 2));
+            };
+            connect(combo_decimate_backend_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                    this, [update_backend_ui](int idx) { update_backend_ui(idx); });
+            connect(chk_decimate_, &QCheckBox::toggled,
+                    this, [this, update_backend_ui](bool) {
+                        update_backend_ui(combo_decimate_backend_->currentIndex());
+                    });
+            combo_decimate_backend_->setCurrentIndex(0);
+        }
+        grp_layout->addWidget(decimate_extra_params_);
     }
 
     root->addWidget(grp);
@@ -432,8 +524,12 @@ modelrepair::RepairOptions MainWindow::collect_options() const
     o.smooth_iterations   = static_cast<unsigned int>(spn_smooth_iters_->value());
     o.smooth_crease_angle = spn_smooth_crease_->value();
     o.smooth_use_vulkan   = chk_smooth_vulkan_->isChecked();
-    o.decimate                    = chk_decimate_->isChecked();
-    o.decimate_ratio              = spin_decimate_ratio_->value();
+    o.decimate              = chk_decimate_->isChecked();
+    o.decimate_ratio        = spin_decimate_ratio_->value();
+    o.decimate_backend      = static_cast<modelrepair::DecimateBackend>(
+                                  combo_decimate_backend_->currentIndex());
+    o.decimate_target_error = spin_decimate_target_error_->value();
+    o.decimate_normal_dev   = spin_decimate_normal_dev_->value();
     return o;
 }
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "modelrepair/Decimate.hpp"
 #include "modelrepair/Mesh.hpp"
 #include "modelrepair/RepairOptions.hpp"
 #include "modelrepair/RepairReport.hpp"
@@ -33,6 +34,8 @@ public:
 
     // Phase 3 — decimate
     explicit WizardWorker(modelrepair::Mesh mesh, double decimate_ratio,
+                          modelrepair::DecimateBackend backend,
+                          double target_error, double normal_deviation,
                           QObject* parent = nullptr);
 
 public slots:
@@ -56,7 +59,10 @@ private:
     bool         do_subdivide_     = false;
     int          subdivide_method_ = 0;   // 0=Loop, 1=CatmullClark
     unsigned int subdivide_iters_  = 1;
-    double       decimate_ratio_   = 0.5;
+    double                       decimate_ratio_   = 0.5;
+    modelrepair::DecimateBackend decimate_backend_ = modelrepair::DecimateBackend::CGAL;
+    double                       decimate_target_error_ = 0.01;
+    double                       decimate_normal_dev_   = 15.0;
 
     std::shared_ptr<std::atomic<bool>> cancel_flag_;
 
