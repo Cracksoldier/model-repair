@@ -1697,7 +1697,7 @@ std::vector&lt;double&gt; t = modelrepair::analyze_wall_thickness(mesh);
             <td>Fetches the pinned OpenMesh commit via <code>FetchContent</code>; defines
               <code>MODELREPAIR_HAVE_OPENMESH</code> and links <code>OpenMeshCore</code> +
               <code>OpenMeshTools</code>. Enables the <em>OpenMesh (QEM)</em> decimation
-              backend. OpenMesh is LGPL-3.0 — linked dynamically. Turn OFF to remove the
+              backend. OpenMesh is LGPL-3.0 — statically linked into <code>libmodelrepair.so</code>. Turn OFF to remove the
               dependency.</td>
           </tr>
         </tbody>

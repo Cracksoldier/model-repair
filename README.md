@@ -73,7 +73,7 @@ These are downloaded automatically by CMake at configure time via `FetchContent`
 | spdlog | v1.15.3 | MIT | Structured logging and progress output |
 | tinygltf | v2.8.21 | MIT | GLB/glTF 2.0 mesh I/O (header-only) |
 | meshoptimizer | v0.22 | MIT | Fast error-bounded mesh simplification backend |
-| OpenMesh | commit `4e2e481` | LGPL-3.0 | QEM-based mesh simplification backend |
+| OpenMesh | commit `4e2e481` | LGPL-3.0 | QEM-based mesh simplification backend (static) |
 | Catch2 | v3.8.1 | BSL-1.0 | Test framework (only if tests are enabled) |
 
 An internet connection is required on first configure. Subsequent configures use the CMake build cache.
@@ -403,6 +403,6 @@ model-repair "$INPUT" "$REPAIRED" --verbose && bambu-studio "$REPAIRED"
 - **spdlog**: MIT
 - **tinygltf**: MIT
 - **meshoptimizer**: MIT
-- **OpenMesh**: LGPL 3.0 — linked dynamically via `libmodelrepair.so`
+- **OpenMesh**: LGPL 3.0 — statically linked into `libmodelrepair.so`
 - **Catch2**: BSL-1.0
 - **Qt 6**: LGPL 3.0 — linked dynamically
