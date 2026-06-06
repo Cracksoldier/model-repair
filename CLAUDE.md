@@ -65,6 +65,36 @@ LD_LIBRARY_PATH=build/debug/src \
 LD_LIBRARY_PATH=build/debug/src \
   build/debug/cli/model-repair blocky.stl out.stl --smooth 3 --decimate 0.5
 
+# CLI — GPU-accelerated smoothing (falls back to CPU if Vulkan unavailable)
+LD_LIBRARY_PATH=build/debug/src \
+  build/debug/cli/model-repair blocky.stl smooth.stl --smooth 5 --smooth-vulkan
+
+# CLI — enable pipeline step 7 (remove faces hidden inside the mesh)
+LD_LIBRARY_PATH=build/debug/src \
+  build/debug/cli/model-repair broken.stl out.stl --remove-internal-geometry
+
+# CLI — decimate with MeshOptimizer backend (fast, error-bounded)
+LD_LIBRARY_PATH=build/debug/src \
+  build/debug/cli/model-repair broken.stl out.stl --decimate 0.5 \
+  --decimate-backend meshoptimizer --decimate-target-error 0.01
+
+# CLI — decimate with OpenMesh QEM backend
+LD_LIBRARY_PATH=build/debug/src \
+  build/debug/cli/model-repair broken.stl out.stl --decimate 0.5 \
+  --decimate-backend openmesh --decimate-normal-dev 15
+
+# CLI — analyse connected shells (works with --diagnose too)
+LD_LIBRARY_PATH=build/debug/src \
+  build/debug/cli/model-repair multi.stl --diagnose --analyze-shells
+
+# CLI — keep only the largest shell after repair
+LD_LIBRARY_PATH=build/debug/src \
+  build/debug/cli/model-repair multi.stl out.stl --keep-largest-shell
+
+# CLI — export every shell as a separate file (OUTPUT is optional)
+LD_LIBRARY_PATH=build/debug/src \
+  build/debug/cli/model-repair multi.stl --export-shells ./shells/
+
 # GUI
 build/debug/gui/model-repair-gui
 ```

@@ -183,16 +183,42 @@ model-repair INPUT OUTPUT [OPTIONS]
 
 # Only fill holes with fewer than 20 boundary edges
 ./build/debug/cli/model-repair broken.stl repaired.stl --max-hole-edges 20
+
+# Enable step 7: remove geometry hidden inside the mesh
+./build/debug/cli/model-repair broken.stl repaired.stl --remove-internal-geometry
+
+# Smooth a blocky voxel mesh, then decimate to 50 % of faces
+./build/debug/cli/model-repair blocky.stl out.stl --smooth 5 --decimate 0.5
+
+# GPU-accelerated smoothing (falls back to CPU if Vulkan unavailable)
+./build/debug/cli/model-repair blocky.stl out.stl --smooth 10 --smooth-vulkan
+
+# Decimate with the fast MeshOptimizer backend
+./build/debug/cli/model-repair model.stl out.stl --decimate 0.5 --decimate-backend meshoptimizer
+
+# Decimate with OpenMesh QEM backend, limiting normal deviation to 20°
+./build/debug/cli/model-repair model.stl out.stl --decimate 0.5 \
+  --decimate-backend openmesh --decimate-normal-dev 20
+
+# Diagnose — analyse connected shells without modifying the mesh
+./build/debug/cli/model-repair multi.stl --diagnose --analyze-shells
+
+# Keep only the largest connected component after repair
+./build/debug/cli/model-repair multi.stl cleaned.stl --keep-largest-shell
+
+# Export every shell as a separate file into a directory (OUTPUT is optional)
+./build/debug/cli/model-repair multi.stl --export-shells ./shells/
 ```
 
 **All options:**
 
 ```
-model-repair INPUT OUTPUT [OPTIONS]
+model-repair INPUT [OUTPUT] [OPTIONS]
 
 Positional:
   INPUT                         Input mesh (.stl, .obj, .3mf, .ply, .glb, .gltf)
   OUTPUT                        Output mesh (format inferred from extension)
+                                Optional when --diagnose or --export-shells is used
 
 Repair steps (all enabled by default):
   --no-merge-vertices           Skip duplicate vertex merging
@@ -204,6 +230,26 @@ Repair steps (all enabled by default):
   --max-hole-edges INT          Skip holes with > N boundary edges (0=all) [0]
   --flat-fill                   Flat fan fill instead of smooth refinement
   --no-remove-self-intersections  Skip self-intersection removal (slow)
+  --remove-internal-geometry    Enable step 7: remove faces inside the closed mesh [off]
+
+Post-repair operations (run after all repair steps, in this order):
+  --remesh FLOAT                Isotropic remesh before smoothing: edge length factor (0.1–2.0)
+  --remesh-iterations INT       Remesh iteration count [3] (1–10)
+  --smooth INT                  Smooth after repair: number of Laplacian iterations (1–50)
+  --smooth-crease-angle FLOAT   Feature-preservation crease angle in degrees [45] (0–180)
+  --smooth-vulkan               Use Vulkan GPU for smoothing (falls back to CPU if unavailable)
+  --decimate FLOAT              Reduce face count to this fraction of original (0.01–1.0)
+  --decimate-backend TEXT       Decimation backend: cgal (default), meshoptimizer, openmesh
+  --decimate-target-error FLOAT MeshOptimizer: relative error budget [0.01] (0.0001–1.0)
+  --decimate-normal-dev FLOAT   OpenMesh: normal deviation limit in degrees [15] (1–90)
+
+Shell operations (applied after all post-repair ops):
+  --analyze-shells              Print connected-component (shell) analysis
+  --keep-largest-shell          Discard all but the largest connected component
+  --export-shells DIR           Split mesh into one file per shell, saved to DIR
+
+Diagnose:
+  --diagnose                    Report issues without modifying the mesh. OUTPUT is optional.
 
 Output:
   --ascii-stl                   Write ASCII STL instead of binary
@@ -215,6 +261,9 @@ Logging:
   -q, --quiet                   Suppress all output except errors
   --version                     Print version and exit
   -h, --help                    Print help and exit
+
+Batch subcommand:
+  model-repair batch FILES... [--output-dir DIR] [--batch-report PATH]
 ```
 
 **Exit codes:**
@@ -222,10 +271,13 @@ Logging:
 | Code | Meaning |
 |---|---|
 | 0 | Success |
-| 1 | Input file not found |
-| 2 | Unsupported file format |
+| 1 | Input/output path error or batch failures |
 | 3 | Repair step failed |
 | 4 | Output write error |
+| 5 | Decimation failed |
+| 6 | Smoothing failed |
+| 7 | Remeshing failed |
+| 8 | Shell export failed (directory missing or save error) |
 
 ---
 

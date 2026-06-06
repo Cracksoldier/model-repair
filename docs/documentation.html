@@ -852,7 +852,7 @@
       <table>
         <thead><tr><th>RepairOptions field</th><th>CLI flag</th><th class="td-type">Type</th><th>Default</th><th>Description</th></tr></thead>
         <tbody>
-          <tr><td><code>remove_internal_geometry</code></td><td>n/a (GUI checkbox only)</td><td class="td-type">bool</td><td class="td-default">false</td><td>Enable/disable this step. Off by default because it is only meaningful on meshes with known interior fragments and is not safe to apply blindly.</td></tr>
+          <tr><td><code>remove_internal_geometry</code></td><td><code>--remove-internal-geometry</code></td><td class="td-type">bool</td><td class="td-default">false</td><td>Enable/disable this step. Off by default because it is only meaningful on meshes with known interior fragments and is not safe to apply blindly.</td></tr>
         </tbody>
       </table>
 
@@ -1007,9 +1007,27 @@ assert(report.diagnose_only == <span class="val">true</span>);</pre>
 <span class="cmd">model-repair</span> broken.stl out.stl <span class="flag">--decimate</span> <span class="val">0.5</span></pre>
 
       <h3>CLI</h3>
-      <pre><span class="cmd">model-repair</span> broken.stl out.stl <span class="flag">--decimate</span> <span class="val">0.5</span>       <span class="cmt"># keep 50 % of faces (CGAL backend)</span>
-<span class="cmd">model-repair</span> broken.stl out.stl <span class="flag">--decimate</span> <span class="val">0.25</span>      <span class="cmt"># keep 25 % of faces</span></pre>
-      <p>The CLI always uses the CGAL backend. The ratio must be in <code>[0.01, 1.0]</code>. Exit code <span class="exit-code exit-err">5</span> is returned if decimation throws an exception.</p>
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Keep 50 % of faces — CGAL backend (default)</span>
+<span class="cmd">model-repair</span> broken.stl out.stl <span class="flag">--decimate</span> <span class="val">0.5</span>
+
+<span class="cmt"># Fast MeshOptimizer backend with custom error budget</span>
+<span class="cmd">model-repair</span> broken.stl out.stl <span class="flag">--decimate</span> <span class="val">0.5</span> <span class="flag">--decimate-backend</span> <span class="val">meshoptimizer</span> <span class="flag">--decimate-target-error</span> <span class="val">0.02</span>
+
+<span class="cmt"># OpenMesh QEM backend — limit normal deviation to 20°</span>
+<span class="cmd">model-repair</span> broken.stl out.stl <span class="flag">--decimate</span> <span class="val">0.5</span> <span class="flag">--decimate-backend</span> <span class="val">openmesh</span> <span class="flag">--decimate-normal-dev</span> <span class="val">20</span></pre>
+      <p>
+        The ratio must be in <code>[0.01, 1.0]</code>. Passing a backend not compiled in silently falls back to CGAL.
+        Exit code <span class="exit-code exit-err">5</span> is returned if decimation throws an exception.
+      </p>
+      <table>
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>--decimate &lt;ratio&gt;</code></td><td>Retain this fraction of faces (0.01–1.0). Enables decimation.</td></tr>
+          <tr><td><code>--decimate-backend &lt;name&gt;</code></td><td>Backend: <code>cgal</code> (default), <code>meshoptimizer</code>, <code>openmesh</code>.</td></tr>
+          <tr><td><code>--decimate-target-error &lt;f&gt;</code></td><td>MeshOptimizer: relative geometric error budget (0.0001–1.0, default 0.01).</td></tr>
+          <tr><td><code>--decimate-normal-dev &lt;deg&gt;</code></td><td>OpenMesh: normal deviation limit in degrees (1–90, default 15).</td></tr>
+        </tbody>
+      </table>
 
       <h3>GUI</h3>
       <p>
@@ -1176,6 +1194,9 @@ std::cout &lt;&lt; dr.faces_before &lt;&lt; <span class="str">" → "</span> &lt
 <span class="cmt"># Smooth with tighter feature preservation (lower crease angle)</span>
 <span class="cmd">model-repair</span> character.stl out.stl <span class="flag">--smooth</span> <span class="val">3</span> <span class="flag">--smooth-crease-angle</span> <span class="val">25</span>
 
+<span class="cmt"># GPU-accelerated smoothing — falls back to CPU if Vulkan is unavailable</span>
+<span class="cmd">model-repair</span> blocky.stl smooth.stl <span class="flag">--smooth</span> <span class="val">10</span> <span class="flag">--smooth-vulkan</span>
+
 <span class="cmt"># Smooth then decimate to 50 % of faces</span>
 <span class="cmd">model-repair</span> blocky.stl out.stl <span class="flag">--smooth</span> <span class="val">3</span> <span class="flag">--decimate</span> <span class="val">0.5</span></pre>
       <p>Iteration count range: 1–50. Crease angle range: 0–180°. Exit code <span class="exit-code exit-err">6</span> is returned if smoothing fails.</p>
@@ -1196,6 +1217,7 @@ std::cout &lt;&lt; dr.faces_before &lt;&lt; <span class="str">" → "</span> &lt
           <tr><td><code>smooth</code></td><td><code>--smooth &lt;n&gt;</code> (n &gt; 0 enables)</td><td class="td-type">bool</td><td class="td-default">false</td><td>Enable post-repair smoothing. Ignored when <code>diagnose_only</code> is true.</td></tr>
           <tr><td><code>smooth_iterations</code></td><td>the <code>&lt;n&gt;</code> value of <code>--smooth</code></td><td class="td-type">unsigned int</td><td class="td-default">3</td><td>Number of Laplacian iterations. Range 1–50.</td></tr>
           <tr><td><code>smooth_crease_angle</code></td><td><code>--smooth-crease-angle &lt;deg&gt;</code></td><td class="td-type">double</td><td class="td-default">45.0</td><td>Dihedral angle threshold in degrees. Edges with a larger angle are progressively excluded from the Laplacian average — 0° = no smoothing, 180° = uniform (no feature preservation). Range 0–180.</td></tr>
+          <tr><td><code>smooth_use_vulkan</code></td><td><code>--smooth-vulkan</code></td><td class="td-type">bool</td><td class="td-default">false</td><td>Use Vulkan GPU compute for smoothing. Falls back to TBB/sequential CPU if Vulkan is unavailable at runtime. Ignored when <code>diagnose_only</code> is true.</td></tr>
         </tbody>
       </table>
 
@@ -1379,6 +1401,27 @@ modelrepair::subdivide(mesh, <span class="val">1</span>, modelrepair::Subdivisio
         no shared vertices. This happens with multi-body exports, accidental duplications,
         or repair operations that leave small fragments. Shell Separation detects and lets you
         manage these components.
+      </p>
+
+      <h3>CLI</h3>
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Print shell analysis without modifying the mesh</span>
+<span class="cmd">model-repair</span> multi.stl <span class="flag">--diagnose</span> <span class="flag">--analyze-shells</span>
+
+<span class="cmt"># Repair and keep only the largest shell</span>
+<span class="cmd">model-repair</span> multi.stl cleaned.stl <span class="flag">--keep-largest-shell</span>
+
+<span class="cmt"># Repair and export every shell as a separate file (OUTPUT is optional)</span>
+<span class="cmd">model-repair</span> multi.stl <span class="flag">--export-shells</span> <span class="val">./shells/</span>
+<span class="cmt"># → shells/multi_shell_0.stl, shells/multi_shell_1.stl, …  (sorted largest-first)</span>
+
+<span class="cmt"># Combine: keep largest shell and also show shell counts</span>
+<span class="cmd">model-repair</span> multi.stl cleaned.stl <span class="flag">--keep-largest-shell</span> <span class="flag">--analyze-shells</span></pre>
+      <p>
+        Shell operations run after all repair and post-repair steps.
+        <code>--export-shells</code> makes <code>OUTPUT</code> optional — pass it only if you also
+        want the combined (post-repair) mesh saved.
+        Exit code <span class="exit-code exit-err">8</span> is returned if the shell export directory
+        does not exist or a shell file cannot be saved.
       </p>
 
       <h3>GUI</h3>
@@ -1780,9 +1823,9 @@ modelrepair::SmoothResult modelrepair::smooth(
         fires from a background thread.
       </p>
       <p>
-        Vulkan GPU smoothing is available through the GUI "Use GPU (Vulkan)" checkbox and
-        through the library API (<code>use_vulkan = true</code>). There is currently no CLI flag
-        for it — the CLI always uses the CPU path (TBB or sequential).
+        Vulkan GPU smoothing is available through the GUI "Use GPU (Vulkan)" checkbox,
+        the <code>--smooth-vulkan</code> CLI flag, and the library API (<code>use_vulkan = true</code>).
+        All three paths fall back to TBB or sequential CPU if Vulkan is unavailable at runtime.
       </p>
 
       <h3 id="perf-decision" class="anchor">Decision Guide</h3>
@@ -1815,9 +1858,10 @@ modelrepair::SmoothResult modelrepair::smooth(
 
       <h3>Synopsis</h3>
       <pre><span class="cmd">model-repair</span> <span class="val">INPUT</span> [<span class="val">OUTPUT</span>] [<span class="flag">OPTIONS</span>]
+<span class="cmd">model-repair</span> batch <span class="val">FILES...</span> [<span class="flag">--output-dir</span> <span class="val">DIR</span>] [<span class="flag">--batch-report</span> <span class="val">PATH</span>] [<span class="flag">OPTIONS</span>]
 
   <span class="val">INPUT</span>   Input mesh file (.stl, .obj, .3mf, .ply, .glb, .gltf) — must exist
-  <span class="val">OUTPUT</span>  Output mesh file — required unless <span class="flag">--diagnose</span> is used</pre>
+  <span class="val">OUTPUT</span>  Output mesh file — optional when <span class="flag">--diagnose</span> or <span class="flag">--export-shells</span> is used</pre>
 
       <h3 id="cli-options" class="anchor">Options</h3>
 
@@ -1834,16 +1878,41 @@ modelrepair::SmoothResult modelrepair::smooth(
           <tr><td><code>--max-hole-edges &lt;n&gt;</code></td><td>Fill only holes with ≤ N boundary edges. Default: <code class="td-default">0</code> (fill all).</td></tr>
           <tr><td><code>--flat-fill</code></td><td>Use flat fan triangulation for holes instead of smooth refinement.</td></tr>
           <tr><td><code>--no-remove-self-intersections</code></td><td>Skip step 6 (self-intersection removal). Recommended for large meshes when speed matters.</td></tr>
+          <tr><td><code>--remove-internal-geometry</code></td><td>Enable step 7: remove faces whose centroid is inside the closed mesh. Off by default.</td></tr>
         </tbody>
       </table>
 
-      <h4>Diagnose, smooth &amp; decimate</h4>
+      <h4>Post-repair: remesh, smooth &amp; decimate</h4>
+      <table>
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>--remesh &lt;factor&gt;</code></td><td>Isotropic remesh before smoothing: target edge length = mean × factor (0.1–2.0). Enables remeshing.</td></tr>
+          <tr><td><code>--remesh-iterations &lt;n&gt;</code></td><td>Number of remesh passes (1–10, default 3).</td></tr>
+          <tr><td><code>--smooth &lt;n&gt;</code></td><td>After repair (and remesh if enabled), run <em>n</em> Laplacian smoothing iterations (1–50). Face count is unchanged.</td></tr>
+          <tr><td><code>--smooth-crease-angle &lt;deg&gt;</code></td><td>Dihedral angle threshold for feature preservation (0–180°, default 45°). Shared with remesh.</td></tr>
+          <tr><td><code>--smooth-vulkan</code></td><td>Use Vulkan GPU compute for smoothing. Falls back to CPU if Vulkan is unavailable.</td></tr>
+          <tr><td><code>--decimate &lt;ratio&gt;</code></td><td>Reduce face count to this fraction (0.01–1.0). Runs after smooth. Saves an intermediate <code>*_repaired.*</code> file automatically.</td></tr>
+          <tr><td><code>--decimate-backend &lt;name&gt;</code></td><td>Decimation algorithm: <code>cgal</code> (default, accurate), <code>meshoptimizer</code> (fast), <code>openmesh</code> (QEM).</td></tr>
+          <tr><td><code>--decimate-target-error &lt;f&gt;</code></td><td>MeshOptimizer relative error budget (0.0001–1.0, default 0.01).</td></tr>
+          <tr><td><code>--decimate-normal-dev &lt;deg&gt;</code></td><td>OpenMesh normal deviation limit in degrees (1–90, default 15).</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Shell operations</h4>
+      <table>
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>--analyze-shells</code></td><td>Print connected-component (shell) analysis: count, face count per shell, open/closed. Works in diagnose mode.</td></tr>
+          <tr><td><code>--keep-largest-shell</code></td><td>After all other operations, discard all but the largest connected component.</td></tr>
+          <tr><td><code>--export-shells &lt;dir&gt;</code></td><td>Split mesh into one file per shell and save to <em>dir</em> as <code>stem_shell_0.ext</code>, <code>stem_shell_1.ext</code>, … OUTPUT becomes optional.</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Diagnose</h4>
       <table>
         <thead><tr><th>Flag</th><th>Description</th></tr></thead>
         <tbody>
           <tr><td><code>--diagnose</code></td><td>Run detection only — report issues without modifying the mesh. OUTPUT is optional.</td></tr>
-          <tr><td><code>--smooth &lt;n&gt;</code></td><td>After repair, run <em>n</em> angle-smoothing iterations (1–50). Moves vertices to reduce surface roughness; face count is unchanged. Runs before <code>--decimate</code>.</td></tr>
-          <tr><td><code>--decimate &lt;ratio&gt;</code></td><td>After repair (and after smooth if both are used), reduce face count to this fraction (0.01–1.0). Saves an intermediate <code>*_repaired.*</code> file containing the post-smooth mesh automatically.</td></tr>
         </tbody>
       </table>
 
@@ -1873,11 +1942,13 @@ modelrepair::SmoothResult modelrepair::smooth(
         <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
         <tbody>
           <tr><td><span class="exit-code exit-0">0</span></td><td>Success — output written (or diagnose completed).</td></tr>
-          <tr><td><span class="exit-code exit-err">1</span></td><td>Input file not found, unreadable, or unsupported format; or OUTPUT omitted without --diagnose.</td></tr>
+          <tr><td><span class="exit-code exit-err">1</span></td><td>Input/output path error (missing file, bad directory) or at least one batch file failed.</td></tr>
           <tr><td><span class="exit-code exit-err">3</span></td><td>Repair step threw an exception.</td></tr>
           <tr><td><span class="exit-code exit-err">4</span></td><td>Output write failed (bad path, disk full, report write error).</td></tr>
           <tr><td><span class="exit-code exit-err">5</span></td><td>Decimation threw an exception (mesh topology incompatible with simplification).</td></tr>
           <tr><td><span class="exit-code exit-err">6</span></td><td>Smoothing threw an exception.</td></tr>
+          <tr><td><span class="exit-code exit-err">7</span></td><td>Remeshing threw an exception.</td></tr>
+          <tr><td><span class="exit-code exit-err">8</span></td><td>Shell export failed — directory does not exist or a shell file could not be saved.</td></tr>
         </tbody>
       </table>
 
@@ -1914,6 +1985,25 @@ modelrepair::SmoothResult modelrepair::smooth(
 
       <pre><button class="copy-btn">copy</button><span class="cmt"># Smooth then decimate — saves out_repaired.stl (post-smooth) and out.stl (decimated)</span>
 <span class="cmd">model-repair</span> blocky.stl out.stl <span class="flag">--smooth</span> <span class="val">3</span> <span class="flag">--decimate</span> <span class="val">0.5</span></pre>
+
+      <pre><button class="copy-btn">copy</button><span class="cmt"># GPU-accelerated smoothing (falls back to CPU automatically if Vulkan unavailable)</span>
+<span class="cmd">model-repair</span> blocky.stl out.stl <span class="flag">--smooth</span> <span class="val">10</span> <span class="flag">--smooth-vulkan</span></pre>
+
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Enable step 7 — remove geometry hidden inside the closed mesh</span>
+<span class="cmd">model-repair</span> broken.stl out.stl <span class="flag">--remove-internal-geometry</span></pre>
+
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Decimate with the fast MeshOptimizer backend</span>
+<span class="cmd">model-repair</span> broken.stl out.stl <span class="flag">--decimate</span> <span class="val">0.5</span> <span class="flag">--decimate-backend</span> <span class="val">meshoptimizer</span></pre>
+
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Analyse connected shells — no file is written</span>
+<span class="cmd">model-repair</span> multi.stl <span class="flag">--diagnose</span> <span class="flag">--analyze-shells</span></pre>
+
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Keep only the largest shell; discard smaller fragments</span>
+<span class="cmd">model-repair</span> multi.stl cleaned.stl <span class="flag">--keep-largest-shell</span></pre>
+
+      <pre><button class="copy-btn">copy</button><span class="cmt"># Export all shells as separate files — OUTPUT is optional</span>
+<span class="cmd">model-repair</span> multi.stl <span class="flag">--export-shells</span> <span class="val">./shells/</span>
+<span class="cmt"># → shells/multi_shell_0.stl, shells/multi_shell_1.stl, …</span></pre>
 
       <h3 id="cli-report" class="anchor">Report format</h3>
       <p>The text report (default stdout) looks like this:</p>
