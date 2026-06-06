@@ -1,6 +1,7 @@
 #include "WizardWorker.hpp"
 
 #include "modelrepair/Decimate.hpp"
+#include "modelrepair/NormalMapDisplace.hpp"
 #include "modelrepair/Remesh.hpp"
 #include "modelrepair/Smooth.hpp"
 #include "modelrepair/Subdivide.hpp"
@@ -21,6 +22,8 @@ WizardWorker::WizardWorker(modelrepair::Mesh mesh,
                             bool do_smooth, unsigned int smooth_iters, double crease_angle,
                             bool use_vulkan,
                             bool do_subdivide, int subdivide_method, unsigned int subdivide_iters,
+                            bool do_displace, std::string normal_map_path,
+                            float displacement_strength, int pre_subdivisions, bool flip_green,
                             QObject* parent)
     : QObject(parent), phase_(Phase::RemeshSmooth), mesh_(std::move(mesh))
     , do_remesh_(do_remesh), remesh_factor_(remesh_factor), remesh_iters_(remesh_iters)
@@ -28,6 +31,9 @@ WizardWorker::WizardWorker(modelrepair::Mesh mesh,
     , use_vulkan_(use_vulkan)
     , do_subdivide_(do_subdivide), subdivide_method_(subdivide_method)
     , subdivide_iters_(subdivide_iters)
+    , do_displace_(do_displace), displace_normal_map_(std::move(normal_map_path))
+    , displace_strength_(displacement_strength), displace_presubdiv_(pre_subdivisions)
+    , displace_flip_green_(flip_green)
 {}
 
 WizardWorker::WizardWorker(modelrepair::Mesh mesh, double decimate_ratio,
@@ -66,9 +72,10 @@ void WizardWorker::run()
     }
     else if (phase_ == Phase::RemeshSmooth)
     {
-        const int total = (do_remesh_   ? static_cast<int>(remesh_iters_)   : 0)
-                        + (do_smooth_   ? static_cast<int>(smooth_iters_)   : 0)
-                        + (do_subdivide_ ? 1 : 0);
+        const int total = (do_remesh_    ? static_cast<int>(remesh_iters_)   : 0)
+                        + (do_smooth_    ? static_cast<int>(smooth_iters_)   : 0)
+                        + (do_subdivide_ ? 1 : 0)
+                        + (do_displace_  ? 1 : 0);
         int done = 0;
 
         try {
@@ -136,6 +143,29 @@ void WizardWorker::run()
                     ++done;
                 } catch (const std::exception& e) {
                     emit finished(std::move(mesh_), {}, QString("Subdivision failed: ") + e.what());
+                    return;
+                }
+            }
+            if (do_displace_) {
+                if (cancel_flag_ && cancel_flag_->load()) throw WizardCancelled{};
+                emit progressChanged(done + 1, total, "Baking normal map…");
+                try {
+                    modelrepair::NormalMapDisplaceParams dp;
+                    dp.normal_map_path      = displace_normal_map_;
+                    dp.displacement_strength = displace_strength_;
+                    dp.pre_subdivisions     = displace_presubdiv_;
+                    dp.flip_green           = displace_flip_green_;
+                    auto dr = modelrepair::displace_from_normal_map(mesh_, dp);
+                    modelrepair::StepReport sr;
+                    sr.name        = "Normal Map Displacement";
+                    sr.was_run     = true;
+                    sr.issues_fixed = dr.faces_after - dr.faces_before;
+                    sr.duration_ms = dr.duration_ms;
+                    report.steps.push_back(sr);
+                    ++done;
+                } catch (const std::exception& e) {
+                    emit finished(std::move(mesh_), {},
+                                  QString("Normal map displacement failed: ") + e.what());
                     return;
                 }
             }

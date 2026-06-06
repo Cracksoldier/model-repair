@@ -2,6 +2,7 @@
 
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Surface_mesh.h>
+#include <array>
 #include <cstddef>
 #include <optional>
 
@@ -11,6 +12,7 @@ namespace modelrepair
 using Kernel   = CGAL::Exact_predicates_inexact_constructions_kernel;
 using Point3   = Kernel::Point_3;
 using SurfMesh = CGAL::Surface_mesh<Point3>;
+using UV2      = std::array<float, 2>;
 
 class Mesh
 {
@@ -27,6 +29,10 @@ public:
 
     double surface_area() const;
     std::optional<double> volume() const;  // nullopt if not closed
+
+    // Per-vertex UV coordinates stored under property key "v:uv".
+    // Populated when loading OBJ files that contain UV data.
+    bool has_uv() const;
 
     void clear();
 

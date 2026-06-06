@@ -15,6 +15,7 @@
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMessageBox>
 #include <QProgressBar>
 #include <QPushButton>
@@ -32,6 +33,7 @@
 
 #include <memory>
 #include <optional>
+#include <string>
 
 namespace gui
 {
@@ -318,6 +320,19 @@ public:
 
     void set_face_count(std::size_t faces) { face_count_ = faces; update_warnings(); }
 
+    void set_has_uv(bool has)
+    {
+        has_uv_ = has;
+        if (warn_displace_no_uv_)
+            warn_displace_no_uv_->setVisible(!has);
+        if (chk_displace_)
+        {
+            chk_displace_->setEnabled(has);
+            if (!has)
+                chk_displace_->setChecked(false);
+        }
+    }
+
     struct Params {
         bool         do_remesh;
         double       remesh_factor;
@@ -329,6 +344,12 @@ public:
         bool         do_subdivide;
         int          subdivide_method;  // 0=Loop, 1=CatmullClark
         unsigned int subdivide_iters;
+        // Normal map displacement
+        bool        do_displace;
+        std::string normal_map_path;
+        float       displacement_strength;
+        int         pre_subdivisions;
+        bool        flip_green;
     };
 
     Params collect_params() const
@@ -344,6 +365,11 @@ public:
             chk_subdivide_->isChecked(),
             combo_subdiv_method_->currentIndex(),
             static_cast<unsigned int>(spin_subdiv_iters_->value()),
+            chk_displace_ ? chk_displace_->isChecked() : false,
+            edit_normal_map_ ? edit_normal_map_->text().toStdString() : std::string{},
+            static_cast<float>(spin_displace_strength_ ? spin_displace_strength_->value() : 0.3),
+            spin_displace_presubdiv_ ? spin_displace_presubdiv_->value() : 2,
+            chk_flip_green_ ? chk_flip_green_->isChecked() : false,
         };
     }
 
@@ -353,7 +379,8 @@ public:
     {
         total_steps_ = (chk_remesh_->isChecked()    ? spin_remesh_iters_->value() : 0)
                      + (chk_smooth_->isChecked()    ? spin_smooth_iters_->value() : 0)
-                     + (chk_subdivide_->isChecked() ? 1 : 0);
+                     + (chk_subdivide_->isChecked() ? 1 : 0)
+                     + (chk_displace_ && chk_displace_->isChecked() ? 1 : 0);
         progress_->setRange(0, total_steps_);
         progress_->setValue(0);
         inner_->setCurrentIndex(1);
@@ -596,6 +623,86 @@ private:
         }
         vbox->addWidget(subdiv_body);
 
+        vbox->addSpacing(8);
+
+        // ── Normal Map Displacement ──────────────────────────────────────────
+        chk_displace_ = new QCheckBox("Normal Map Displacement [experimental]");
+        chk_displace_->setChecked(false);
+        chk_displace_->setEnabled(false);  // enabled by set_has_uv(true)
+        vbox->addWidget(chk_displace_);
+        vbox->addWidget(info_label(
+            "Bakes tangent-space normal map detail into real displaced geometry. "
+            "Requires an OBJ file with UV coordinates. "
+            "Produces dense surface relief suitable for 3D printing."));
+
+        warn_displace_no_uv_ = warn_label(
+            "⚠ This mesh has no UV coordinates. "
+            "Load an OBJ file that includes UV data to use this feature.");
+        warn_displace_no_uv_->setVisible(true);
+        vbox->addWidget(warn_displace_no_uv_);
+
+        auto* displace_body = new QWidget;
+        displace_body->setVisible(false);
+        connect(chk_displace_, &QCheckBox::toggled, displace_body, &QWidget::setVisible);
+        {
+            auto* vb = new QVBoxLayout(displace_body);
+            vb->setContentsMargins(22, 0, 0, 0);
+            vb->setSpacing(2);
+
+            auto make_rowd = [&](const QString& lbl_text, QWidget* ctrl) -> QHBoxLayout*
+            {
+                auto* row = new QHBoxLayout;
+                row->addWidget(new QLabel(lbl_text));
+                row->addWidget(ctrl);
+                row->addStretch();
+                return row;
+            };
+
+            // Normal map file path
+            auto* path_row = new QHBoxLayout;
+            path_row->addWidget(new QLabel("Normal map:"));
+            edit_normal_map_ = new QLineEdit;
+            edit_normal_map_->setPlaceholderText("Path to PNG / JPG / TGA…");
+            path_row->addWidget(edit_normal_map_, 1);
+            auto* btn_browse = new QPushButton("Browse…");
+            connect(btn_browse, &QPushButton::clicked, this, [this]() {
+                const QString p = QFileDialog::getOpenFileName(
+                    this, "Select normal map", {},
+                    "Images (*.png *.jpg *.jpeg *.tga);;All files (*)");
+                if (!p.isEmpty())
+                    edit_normal_map_->setText(p);
+            });
+            path_row->addWidget(btn_browse);
+            vb->addLayout(path_row);
+
+            spin_displace_strength_ = new QDoubleSpinBox;
+            spin_displace_strength_->setRange(0.01, 5.0);
+            spin_displace_strength_->setSingleStep(0.05);
+            spin_displace_strength_->setDecimals(2);
+            spin_displace_strength_->setValue(0.3);
+            spin_displace_strength_->setSuffix(" mm");
+            vb->addLayout(make_rowd("Displacement strength:", spin_displace_strength_));
+            vb->addWidget(info_label(
+                "Maximum vertex push in mesh units. "
+                "0.05–0.15 mm: subtle resin detail.  0.3–1.0 mm: visible surface relief."));
+
+            spin_displace_presubdiv_ = new QSpinBox;
+            spin_displace_presubdiv_->setRange(0, 4);
+            spin_displace_presubdiv_->setValue(2);
+            vb->addLayout(make_rowd("Pre-subdivide passes:", spin_displace_presubdiv_));
+            vb->addWidget(info_label(
+                "Loop-subdivides before displacing so there are enough vertices "
+                "to capture fine normal-map detail. Each pass grows face count ~4×."));
+
+            chk_flip_green_ = new QCheckBox("Flip green channel (DirectX normal maps)");
+            chk_flip_green_->setChecked(false);
+            vb->addWidget(chk_flip_green_);
+            vb->addWidget(info_label(
+                "Enable for normal maps baked in DirectX convention (Y-axis inverted). "
+                "Blender and most other tools export OpenGL convention by default."));
+        }
+        vbox->addWidget(displace_body);
+
         vbox->addStretch();
 
         auto* btn_row = new QHBoxLayout;
@@ -685,7 +792,15 @@ private:
     QSpinBox*  spin_subdiv_iters_   = nullptr;
     QLabel*    warn_subdiv_         = nullptr;
 
+    QCheckBox*      chk_displace_           = nullptr;
+    QLabel*         warn_displace_no_uv_    = nullptr;
+    QLineEdit*      edit_normal_map_        = nullptr;
+    QDoubleSpinBox* spin_displace_strength_ = nullptr;
+    QSpinBox*       spin_displace_presubdiv_= nullptr;
+    QCheckBox*      chk_flip_green_         = nullptr;
+
     std::size_t face_count_   = 0;
+    bool        has_uv_       = false;
     int         total_steps_  = 1;
 
     std::optional<modelrepair::Mesh> before_mesh_;
@@ -1198,9 +1313,15 @@ void WizardWindow::on_phase1_finish()   { try_save_and_accept(); }
 void WizardWindow::on_phase2_run()
 {
     const auto p = page2_->collect_params();
-    if (!p.do_remesh && !p.do_smooth && !p.do_subdivide) {
+    if (!p.do_remesh && !p.do_smooth && !p.do_subdivide && !p.do_displace) {
         QMessageBox::information(this, "Nothing selected",
-            "Enable at least one of Remesh, Smooth, or Subdivide, or click Skip.");
+            "Enable at least one operation (Remesh, Smooth, Subdivide, or "
+            "Normal Map Displacement), or click Skip.");
+        return;
+    }
+    if (p.do_displace && p.normal_map_path.empty()) {
+        QMessageBox::warning(this, "No normal map selected",
+            "Please select a normal map image before running displacement.");
         return;
     }
     phase_start_mesh_ = current_mesh_;
@@ -1208,7 +1329,9 @@ void WizardWindow::on_phase2_run()
     auto* worker = new WizardWorker(current_mesh_,
         p.do_remesh, p.remesh_factor, p.remesh_iters,
         p.do_smooth, p.smooth_iters, p.crease_angle, p.use_vulkan,
-        p.do_subdivide, p.subdivide_method, p.subdivide_iters);
+        p.do_subdivide, p.subdivide_method, p.subdivide_iters,
+        p.do_displace, p.normal_map_path, p.displacement_strength,
+        p.pre_subdivisions, p.flip_green);
     start_worker_thread(worker);
 }
 
@@ -1270,6 +1393,7 @@ void WizardWindow::enter_phase2()
     current_phase_ = 2;
     phase_header_->setText("Phase 2 of 3 — Remesh & Smooth (optional)");
     page2_->set_face_count(current_mesh_.num_faces());
+    page2_->set_has_uv(current_mesh_.has_uv());
     pages_->setCurrentWidget(page2_);
 }
 

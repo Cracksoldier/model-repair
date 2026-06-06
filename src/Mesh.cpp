@@ -64,6 +64,11 @@ std::optional<double> Mesh::volume() const
     return CGAL::to_double(PMP::volume(mesh_));
 }
 
+bool Mesh::has_uv() const
+{
+    return mesh_.property_map<SurfMesh::Vertex_index, UV2>("v:uv").has_value();
+}
+
 void Mesh::clear()
 {
     mesh_.clear();

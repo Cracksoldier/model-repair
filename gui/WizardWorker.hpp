@@ -2,6 +2,7 @@
 
 #include "modelrepair/Decimate.hpp"
 #include "modelrepair/Mesh.hpp"
+#include "modelrepair/NormalMapDisplace.hpp"
 #include "modelrepair/RepairOptions.hpp"
 #include "modelrepair/RepairReport.hpp"
 
@@ -10,6 +11,7 @@
 
 #include <atomic>
 #include <memory>
+#include <string>
 
 namespace gui
 {
@@ -24,12 +26,14 @@ public:
     explicit WizardWorker(modelrepair::Mesh mesh, modelrepair::RepairOptions opts,
                           QObject* parent = nullptr);
 
-    // Phase 2 — remesh and/or smooth and/or subdivide
+    // Phase 2 — remesh and/or smooth and/or subdivide and/or normal-map displacement
     explicit WizardWorker(modelrepair::Mesh mesh,
                           bool do_remesh, double remesh_factor, unsigned int remesh_iters,
                           bool do_smooth, unsigned int smooth_iters, double crease_angle,
                           bool use_vulkan,
                           bool do_subdivide, int subdivide_method, unsigned int subdivide_iters,
+                          bool do_displace, std::string normal_map_path,
+                          float displacement_strength, int pre_subdivisions, bool flip_green,
                           QObject* parent = nullptr);
 
     // Phase 3 — decimate
@@ -59,6 +63,11 @@ private:
     bool         do_subdivide_     = false;
     int          subdivide_method_ = 0;   // 0=Loop, 1=CatmullClark
     unsigned int subdivide_iters_  = 1;
+    bool         do_displace_           = false;
+    std::string  displace_normal_map_;
+    float        displace_strength_     = 0.3f;
+    int          displace_presubdiv_    = 2;
+    bool         displace_flip_green_   = false;
     double                       decimate_ratio_   = 0.5;
     modelrepair::DecimateBackend decimate_backend_ = modelrepair::DecimateBackend::CGAL;
     double                       decimate_target_error_ = 0.01;

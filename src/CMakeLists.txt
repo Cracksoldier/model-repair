@@ -15,6 +15,7 @@ add_library(modelrepair SHARED
     repairs/RemoveInternalGeometry.cpp
     repairs/RemoveInternalGeometryStep.cpp
     repairs/Subdivide.cpp
+    repairs/NormalMapDisplace.cpp
     analysis/WallThickness.cpp
     io/StlIO.cpp
     io/ObjIO.cpp
