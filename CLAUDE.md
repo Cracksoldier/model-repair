@@ -105,6 +105,9 @@ LD_LIBRARY_PATH=build/debug/src \
 
 # GUI
 build/debug/gui/model-repair-gui
+
+# GUI — suppress known NVIDIA/Wayland/D-Bus system-library leaks (not our code)
+LSAN_OPTIONS=suppressions=asan_suppressions.txt build/debug/gui/model-repair-gui
 ```
 
 ## Docs

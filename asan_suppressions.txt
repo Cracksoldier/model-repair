@@ -1,0 +1,18 @@
+# LSan suppressions for system-library leaks that are not from our code.
+# Apply with: LSAN_OPTIONS=suppressions=asan_suppressions.txt <binary>
+#
+# These libraries do not release all resources at process exit:
+#   - NVIDIA EGL/GL driver (GPU context cleanup happens inside the kernel module)
+#   - Qt Wayland platform plugin (Wayland proxy objects are not freed at exit)
+#   - D-Bus (pending message queue is asynchronous)
+
+# NVIDIA EGL / OpenGL driver
+leak:libEGL_nvidia
+leak:libnvidia-glsi
+leak:nvidia-drm_gbm
+
+# Qt Wayland platform plugin
+leak:libwayland-client
+
+# D-Bus message queue
+leak:libdbus-1

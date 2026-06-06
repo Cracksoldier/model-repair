@@ -10,6 +10,7 @@
 #include <QPixmap>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QException>
 #include <QResizeEvent>
 #include <QSpinBox>
 #include <QVBoxLayout>
@@ -238,6 +239,21 @@ void NormalToDisplacementWindow::on_result_ready()
     try
     {
         result_ = watcher_->result();
+    }
+    catch (const QUnhandledException& e)
+    {
+        // QtConcurrent wraps non-QException throws in QUnhandledException.
+        // Rethrow the stored exception_ptr to recover the original message.
+        set_running(false);
+        QString msg = "Unknown error during conversion.";
+        if (e.exception()) {
+            try { std::rethrow_exception(e.exception()); }
+            catch (const std::exception& inner)
+                { msg = QString("Error: %1").arg(inner.what()); }
+            catch (...) {}
+        }
+        lbl_status_->setText(msg);
+        return;
     }
     catch (const std::exception& e)
     {
