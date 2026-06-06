@@ -84,6 +84,74 @@ jobs:
         path: model-repair-${{ inputs.version }}-x86_64.AppImage
         if-no-files-found: error
 
+  build-linux-cli:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+
+    steps:
+    - name: Install system dependencies
+      run: |
+        pacman -Syu --noconfirm
+        pacman -S --noconfirm \
+          git cmake ninja base-devel \
+          cgal eigen3 boost gmp mpfr \
+          patchelf
+
+    - uses: actions/checkout@v4
+
+    - name: Configure
+      run: |
+        cmake -B build -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DMODELREPAIR_BUILD_GUI=OFF \
+          -DMODELREPAIR_BUILD_TESTS=OFF \
+          -DMODELREPAIR_ENABLE_ASAN=OFF
+
+    - name: Build
+      run: cmake --build build -j$(nproc)
+
+    - name: Bundle into tarball
+      run: |
+        DIST=dist/model-repair-cli
+        mkdir -p "$DIST"
+
+        cp build/cli/model-repair "$DIST/"
+        cp -P build/src/libmodelrepair.so* "$DIST/"
+        cp -P build/_deps/lib3mf-build/lib3mf.so* "$DIST/"
+        find build -name "libOpenMesh*.so*" ! -path "*/CMakeFiles/*" \
+          -exec cp -P {} "$DIST/" \;
+
+        # Two ldd sweeps to catch transitive deps of newly-copied libs
+        for pass in 1 2; do
+          for f in "$DIST"/model-repair "$DIST"/*.so*; do
+            ldd "$f" 2>/dev/null
+          done \
+            | awk '{print $3}' \
+            | grep -v -E '^(not|)$' \
+            | grep -v -E '(linux-vdso|libc\.so\.|libm\.so\.|libpthread\.so\.|libdl\.so\.|librt\.so\.|ld-linux)' \
+            | sort -u \
+            | while read lib; do [ -f "$lib" ] && cp -u "$lib" "$DIST/"; done
+        done
+
+        # Make every ELF find its bundled siblings via $ORIGIN rpath
+        for f in "$DIST"/model-repair "$DIST"/*.so*; do
+          [ -f "$f" ] && patchelf --set-rpath '$ORIGIN' "$f" 2>/dev/null || true
+        done
+
+        mkdir -p "$DIST/LICENSES"
+        cp LICENSE LICENSES/* "$DIST/LICENSES/"
+
+        tar -czf model-repair-${{ inputs.version }}-linux-cli-x64.tar.gz \
+          -C dist model-repair-cli
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux-cli-tarball
+        path: model-repair-*-linux-cli-x64.tar.gz
+        if-no-files-found: error
+
   build-windows:
     runs-on: windows-latest
 
@@ -157,7 +225,7 @@ jobs:
         if-no-files-found: error
 
   release:
-    needs: [build-linux, build-windows]
+    needs: [build-linux, build-linux-cli, build-windows]
     runs-on: ubuntu-latest
     if: ${{ inputs.create_release }}
 
@@ -167,6 +235,12 @@ jobs:
       with:
         name: appimage
         path: appimage
+
+    - name: Download Linux CLI artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: linux-cli-tarball
+        path: linux-cli-tarball
 
     - name: Download Windows artifact
       uses: actions/download-artifact@v4
@@ -182,6 +256,7 @@ jobs:
         draft: true
         files: |
           appimage/model-repair-${{ inputs.version }}-x86_64.AppImage
+          linux-cli-tarball/model-repair-${{ inputs.version }}-linux-cli-x64.tar.gz
           windows-zip/model-repair-${{ inputs.version }}-windows-x64.zip
 
   bump-version:
