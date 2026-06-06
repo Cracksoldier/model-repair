@@ -10,6 +10,7 @@
 #include <QPixmap>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QResizeEvent>
 #include <QSpinBox>
 #include <QVBoxLayout>
 #include <QtConcurrent/QtConcurrent>
@@ -142,6 +143,14 @@ NormalToDisplacementWindow::NormalToDisplacementWindow(QWidget* parent)
             this, &NormalToDisplacementWindow::on_export_clicked);
 }
 
+// ── Event overrides ──────────────────────────────────────────────────────────
+
+void NormalToDisplacementWindow::resizeEvent(QResizeEvent* e)
+{
+    QWidget::resizeEvent(e);
+    update_preview();
+}
+
 // ── Private helpers ──────────────────────────────────────────────────────────
 
 modelrepair::NormalToDisplacementSettings
@@ -226,29 +235,29 @@ void NormalToDisplacementWindow::on_run_clicked()
 
 void NormalToDisplacementWindow::on_result_ready()
 {
-    set_running(false);
-
     try
     {
         result_ = watcher_->result();
     }
     catch (const std::exception& e)
     {
+        set_running(false);
         lbl_status_->setText(QString("Error: %1").arg(e.what()));
         return;
     }
     catch (...)
     {
+        set_running(false);
         lbl_status_->setText("Unknown error during conversion.");
         return;
     }
 
+    set_running(false);   // result_ is now populated; Export enabled via set_running
     lbl_status_->setText(
-        QString("%1×%2  |  %3 ms")
+        QString("%1\xC3\x97%2  |  %3 ms")
             .arg(result_.width)
             .arg(result_.height_px)
             .arg(static_cast<double>(result_.duration_ms), 0, 'f', 0));
-    btn_export_->setEnabled(true);
     update_preview();
 }
 

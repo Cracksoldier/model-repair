@@ -11,7 +11,9 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <memory>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace modelrepair
@@ -72,8 +74,16 @@ NormalToDisplacementResult normal_to_displacement(
         throw std::runtime_error(
             std::string("NormalToDisplacement: cannot load '") +
             normal_map_path + "': " + stbi_failure_reason());
+    struct StbiDeleter { void operator()(unsigned char* p) const { stbi_image_free(p); } };
+    std::unique_ptr<unsigned char, StbiDeleter> raw_guard(raw);
 
-    const int N = W * H;
+    const long long N_ll = static_cast<long long>(W) * H;
+    if (N_ll > 8'000'000LL)
+        throw std::runtime_error(
+            "NormalToDisplacement: image too large (" + std::to_string(W) + "x" +
+            std::to_string(H) + " = " + std::to_string(N_ll) +
+            " pixels). Downsample to <=2828x2828 first.");
+    const int N = static_cast<int>(N_ll);
 
     // ── 2. Decode normals → gradient field ──────────────────────────────────
     // gx ≈ dh/dx,  gy ≈ dh/dy,  derived from nz via  g = -n_tan / max(nz, ε)
@@ -102,8 +112,6 @@ NormalToDisplacementResult normal_to_displacement(
             gx[idx] = std::clamp(-nx_v * inv_nz * gs, -max_grad, max_grad);
             gy[idx] = std::clamp(-ny_v * inv_nz * gs, -max_grad, max_grad);
         }
-
-    stbi_image_free(raw);
 
     // ── 3. Compute divergence of gradient field ──────────────────────────────
     // div(x,y) = (gx[x,y] - gx[x-1,y]) + (gy[x,y] - gy[x,y-1])
@@ -135,9 +143,9 @@ NormalToDisplacementResult normal_to_displacement(
 
             int n_neighbors = 0;
             auto add_off = [&](int j) {
-                if (j == 0) return;   // Dirichlet neighbour: zero column entry (symmetric fix)
+                ++n_neighbors;        // always count this edge — preserves true Laplacian degree
+                if (j == 0) return;   // Dirichlet BC: zero column entry only, diagonal stays
                 trips.emplace_back(idx, j, -1.f);
-                ++n_neighbors;
             };
 
             if (x > 0)     add_off(idx - 1);      else ++n_neighbors;

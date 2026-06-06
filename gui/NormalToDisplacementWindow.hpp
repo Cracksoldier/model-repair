@@ -3,6 +3,7 @@
 #include "modelrepair/NormalToDisplacement.hpp"
 
 #include <QFutureWatcher>
+#include <QResizeEvent>
 #include <QWidget>
 
 class QCheckBox;
@@ -22,6 +23,9 @@ class NormalToDisplacementWindow : public QWidget
 
 public:
     explicit NormalToDisplacementWindow(QWidget* parent = nullptr);
+
+protected:
+    void resizeEvent(QResizeEvent* event) override;
 
 private slots:
     void on_browse_clicked();
