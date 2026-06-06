@@ -98,7 +98,7 @@ NormalToDisplacementWindow::NormalToDisplacementWindow(QWidget* parent)
     spin_gradient_  = add_dspin("Gradient strength:", 0.01, 20.0, 1.0, 0.1, 2);
     spin_contrast_  = add_dspin("Contrast:", 0.1, 10.0, 1.0, 0.1, 2);
     spin_blur_      = add_dspin("Blur radius (px):", 0.0, 100.0, 0.0, 1.0, 0);
-    spin_iters_     = add_ispin("Solver iterations:", 50, 5000, 1000);
+    spin_iters_     = add_ispin("Solver iterations:", 10, 2000, 300);
 
     left->addStretch();
 
@@ -269,10 +269,16 @@ void NormalToDisplacementWindow::on_result_ready()
     }
 
     set_running(false);   // result_ is now populated; Export enabled via set_running
+
+    const QString conv_info = result_.solver_converged
+        ? QString("%1 iters").arg(result_.solver_iterations)
+        : QString("%1 iters \xe2\x80\x94 not converged (try more iterations or a smaller image)")
+              .arg(result_.solver_iterations);
     lbl_status_->setText(
-        QString("%1\xC3\x97%2  |  %3 ms")
+        QString("%1\xC3\x97%2  |  %3  |  %4 ms")
             .arg(result_.width)
             .arg(result_.height_px)
+            .arg(conv_info)
             .arg(static_cast<double>(result_.duration_ms), 0, 'f', 0));
     update_preview();
 }
