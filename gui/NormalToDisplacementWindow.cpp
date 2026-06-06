@@ -10,6 +10,7 @@
 #include <QPixmap>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QTimer>
 #include <QException>
 #include <QResizeEvent>
 #include <QSpinBox>
@@ -100,15 +101,28 @@ NormalToDisplacementWindow::NormalToDisplacementWindow(QWidget* parent)
     spin_blur_      = add_dspin("Blur radius (px):", 0.0, 100.0, 0.0, 1.0, 0);
     spin_iters_     = add_ispin("Solver iterations:", 10, 2000, 300);
 
+    {
+        auto* lbl_info = new QLabel(
+            "Max image: 8 MP (≤ 2828×2828). "
+            "With IncompleteCholesky, 50–""150 iterations usually suffice; "
+            "increase only if \"not converged\" is shown.");
+        lbl_info->setWordWrap(true);
+        lbl_info->setStyleSheet("color: #888; font-size: 10px; font-style: italic;");
+        left->addWidget(lbl_info);
+    }
+
     left->addStretch();
 
     // Action buttons
     {
         auto* row = new QHBoxLayout;
         btn_run_    = new QPushButton("Run");
+        btn_cancel_ = new QPushButton("Cancel");
         btn_export_ = new QPushButton("Export 16-bit PNG…");
+        btn_cancel_->setEnabled(false);
         btn_export_->setEnabled(false);
         row->addWidget(btn_run_);
+        row->addWidget(btn_cancel_);
         row->addWidget(btn_export_);
         left->addLayout(row);
     }
@@ -117,6 +131,16 @@ NormalToDisplacementWindow::NormalToDisplacementWindow(QWidget* parent)
     progress_bar_->setRange(0, 0);   // indeterminate
     progress_bar_->setVisible(false);
     left->addWidget(progress_bar_);
+
+    lbl_elapsed_ = new QLabel;
+    lbl_elapsed_->setAlignment(Qt::AlignRight);
+    lbl_elapsed_->setStyleSheet("color: #aaa; font-size: 11px;");
+    left->addWidget(lbl_elapsed_);
+
+    elapsed_timer_ = new QTimer(this);
+    elapsed_timer_->setInterval(1000);
+    connect(elapsed_timer_, &QTimer::timeout,
+            this, &NormalToDisplacementWindow::on_elapsed_tick);
 
     lbl_status_ = new QLabel;
     lbl_status_->setWordWrap(true);
@@ -140,6 +164,8 @@ NormalToDisplacementWindow::NormalToDisplacementWindow(QWidget* parent)
 
     connect(btn_run_,    &QPushButton::clicked,
             this, &NormalToDisplacementWindow::on_run_clicked);
+    connect(btn_cancel_, &QPushButton::clicked,
+            this, &NormalToDisplacementWindow::on_cancel_clicked);
     connect(btn_export_, &QPushButton::clicked,
             this, &NormalToDisplacementWindow::on_export_clicked);
 }
@@ -171,8 +197,17 @@ NormalToDisplacementWindow::collect_settings() const
 void NormalToDisplacementWindow::set_running(bool running)
 {
     btn_run_->setEnabled(!running);
+    btn_cancel_->setEnabled(running);
     btn_export_->setEnabled(!running && !result_.height.empty());
     progress_bar_->setVisible(running);
+    if (running) {
+        cancelled_ = false;
+        elapsed_clock_.start();
+        lbl_elapsed_->setText("0:00");
+        elapsed_timer_->start();
+    } else {
+        elapsed_timer_->stop();
+    }
 }
 
 void NormalToDisplacementWindow::update_preview()
@@ -270,6 +305,12 @@ void NormalToDisplacementWindow::on_result_ready()
 
     set_running(false);   // result_ is now populated; Export enabled via set_running
 
+    if (cancelled_) {
+        result_ = {};
+        lbl_status_->setText("Cancelled.");
+        return;
+    }
+
     const QString conv_info = result_.solver_converged
         ? QString("%1 iters").arg(result_.solver_iterations)
         : QString("%1 iters \xe2\x80\x94 not converged (try more iterations or a smaller image)")
@@ -281,6 +322,21 @@ void NormalToDisplacementWindow::on_result_ready()
             .arg(conv_info)
             .arg(static_cast<double>(result_.duration_ms), 0, 'f', 0));
     update_preview();
+}
+
+void NormalToDisplacementWindow::on_cancel_clicked()
+{
+    cancelled_ = true;
+    btn_cancel_->setEnabled(false);
+    lbl_status_->setText("Cancelling\xe2\x80\xa6");
+}
+
+void NormalToDisplacementWindow::on_elapsed_tick()
+{
+    const qint64 secs = elapsed_clock_.elapsed() / 1000;
+    lbl_elapsed_->setText(QString("%1:%2")
+        .arg(secs / 60)
+        .arg(secs % 60, 2, 10, QChar('0')));
 }
 
 void NormalToDisplacementWindow::on_export_clicked()
