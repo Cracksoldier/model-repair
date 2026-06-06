@@ -1,4 +1,5 @@
 #include "NormalToDisplacementWindow.hpp"
+#include "timer_util.hpp"
 
 #include <QCheckBox>
 #include <QDoubleSpinBox>
@@ -280,6 +281,7 @@ void NormalToDisplacementWindow::on_result_ready()
         // QtConcurrent wraps non-QException throws in QUnhandledException.
         // Rethrow the stored exception_ptr to recover the original message.
         set_running(false);
+        lbl_elapsed_->clear();
         QString msg = "Unknown error during conversion.";
         if (e.exception()) {
             try { std::rethrow_exception(e.exception()); }
@@ -293,12 +295,14 @@ void NormalToDisplacementWindow::on_result_ready()
     catch (const std::exception& e)
     {
         set_running(false);
+        lbl_elapsed_->clear();
         lbl_status_->setText(QString("Error: %1").arg(e.what()));
         return;
     }
     catch (...)
     {
         set_running(false);
+        lbl_elapsed_->clear();
         lbl_status_->setText("Unknown error during conversion.");
         return;
     }
@@ -307,6 +311,8 @@ void NormalToDisplacementWindow::on_result_ready()
 
     if (cancelled_) {
         result_ = {};
+        btn_export_->setEnabled(false);
+        lbl_elapsed_->clear();
         lbl_status_->setText("Cancelled.");
         return;
     }
@@ -333,10 +339,7 @@ void NormalToDisplacementWindow::on_cancel_clicked()
 
 void NormalToDisplacementWindow::on_elapsed_tick()
 {
-    const qint64 secs = elapsed_clock_.elapsed() / 1000;
-    lbl_elapsed_->setText(QString("%1:%2")
-        .arg(secs / 60)
-        .arg(secs % 60, 2, 10, QChar('0')));
+    lbl_elapsed_->setText(gui::fmt_elapsed(elapsed_clock_.elapsed()));
 }
 
 void NormalToDisplacementWindow::on_export_clicked()
