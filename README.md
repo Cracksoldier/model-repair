@@ -156,6 +156,7 @@ cmake --build build/minimal -j$(nproc)
 5. Review the per-step report in the main window
 6. Click **Save As…** to export the repaired mesh
 7. Or click **Wizard…** for a guided three-phase workflow: Phase 1 repairs the mesh, Phase 2 optionally remeshes/smooths/subdivides it and can bake a normal map into geometry [highly experimental], Phase 3 optionally decimates it — each phase shows a before/after 3D preview before you commit
+8. Use the **Tools** dropdown in the toolbar to open standalone tools — currently: **Normal Map → Displacement** (converts a tangent-space normal map PNG to a 16-bit grayscale height map via Poisson reconstruction; no mesh required; limit: ≤8 MP)
 
 ### CLI
 
@@ -372,14 +373,16 @@ libmodelrepair.so              (shared library — LGPL-safe via dynamic linking
 ├── RemoveInternalGeometry     Centroid inside-test, removes hidden faces
 ├── Subdivide                  Loop / Catmull-Clark mesh subdivision (UV-propagating)
 ├── NormalMapDisplace          Bake tangent-space normal map detail into geometry
+├── NormalToDisplacement       Poisson height-map reconstruction from normal map (image→image)
 └── io/                        STL / OBJ / 3MF / PLY / GLB / GLTF readers and writers
 
 model-repair                   CLI frontend (links libmodelrepair)
 model-repair-gui               Qt 6 frontend (links libmodelrepair)
-├── MainWindow                 Main UI — options, progress, report, shell separation
+├── MainWindow                 Main UI — options, progress, report, shell separation, Tools menu
 ├── BatchWindow                Multi-file batch repair (QDialog)
 ├── WizardWindow               Guided three-phase repair workflow (QDialog)
 ├── WizardWorker               Per-phase background worker (QObject/QThread)
+├── NormalToDisplacementWindow Normal map → displacement map converter (Tools dropdown)
 ├── PreviewWindow              Side-by-side Before/After 3D window with shading modes
 └── MeshViewWidget             QOpenGLWidget — Phong + heatmap shading, arcball camera
 ```
