@@ -626,11 +626,12 @@ private:
         vbox->addSpacing(8);
 
         // ── Normal Map Displacement ──────────────────────────────────────────
-        chk_displace_ = new QCheckBox("Normal Map Displacement [experimental]");
+        chk_displace_ = new QCheckBox("Normal Map Displacement [highly experimental]");
         chk_displace_->setChecked(false);
         chk_displace_->setEnabled(false);  // enabled by set_has_uv(true)
         vbox->addWidget(chk_displace_);
         vbox->addWidget(info_label(
+            "⚠ Highly experimental — results may be noisy or inaccurate. "
             "Bakes tangent-space normal map detail into real displaced geometry. "
             "Requires an OBJ file with UV coordinates. "
             "Produces dense surface relief suitable for 3D printing."));
