@@ -1,5 +1,6 @@
 #include "modelrepair/Decimate.hpp"
 #include "modelrepair/Remesh.hpp"
+#include "modelrepair/ShellSeparation.hpp"
 #include "modelrepair/Smooth.hpp"
 #include "modelrepair/RepairPipeline.hpp"
 #include "modelrepair/RepairReport.hpp"
@@ -63,19 +64,31 @@ static int issues_fixed(const RepairReport& r)
     return n;
 }
 
+static void print_shell_analysis(const ShellSeparationResult& sr)
+{
+    std::cout << "Shells: " << sr.components_found << " connected component(s)\n";
+    for (std::size_t i = 0; i < sr.shells.size(); ++i)
+        std::cout << "  [" << i << "] " << sr.shells[i].face_count << " faces"
+                  << (sr.shells[i].is_closed ? ", closed" : ", open") << "\n";
+}
+
 // ── single-file repair ────────────────────────────────────────────────────────
 
 static int run_single_file(
-    const fs::path& input_path,
-    const fs::path& output_path,
-    const RepairOptions& opts,
-    bool ascii_stl,
-    bool quiet,
-    bool verbose,
-    const std::string& report_path,
-    const std::string& report_format,
-    double decimate_ratio,
-    unsigned int smooth_iters,
+    const fs::path&       input_path,
+    const fs::path&       output_path,
+    const RepairOptions&  opts,
+    bool                  ascii_stl,
+    bool                  quiet,
+    bool                  verbose,
+    const std::string&    report_path,
+    const std::string&    report_format,
+    const DecimateParams& decimate_params,
+    unsigned int          smooth_iters,
+    bool                  smooth_vulkan,
+    bool                  analyze_shells_flag,
+    bool                  keep_largest_shell,
+    const fs::path&       export_shells_dir,
     std::shared_ptr<spdlog::logger> logger)
 {
     // Load
@@ -145,7 +158,8 @@ static int run_single_file(
         modelrepair::SmoothResult smr;
         try
         {
-            smr = modelrepair::smooth(mesh, smooth_iters, opts.smooth_crease_angle);
+            smr = modelrepair::smooth(mesh, smooth_iters, opts.smooth_crease_angle,
+                                      nullptr, smooth_vulkan);
         }
         catch (const std::exception& e)
         {
@@ -160,26 +174,29 @@ static int run_single_file(
     }
 
     // Decimate (after smooth)
-    if (decimate_ratio > 0.0 && !opts.diagnose_only)
+    if (decimate_params.ratio > 0.0 && !opts.diagnose_only)
     {
         // Save pre-decimate intermediate (post-repair and post-smooth)
         fs::path inter = output_path.parent_path()
                        / (output_path.stem().string() + "_repaired"
                           + output_path.extension().string());
-        try
+        if (!output_path.empty())
         {
-            modelrepair::io::save(mesh, inter, !ascii_stl);
-            logger->info("Pre-decimate mesh saved to {}", inter.string());
-        }
-        catch (const std::exception& e)
-        {
-            logger->warn("Could not save pre-decimate intermediate: {}", e.what());
+            try
+            {
+                modelrepair::io::save(mesh, inter, !ascii_stl);
+                logger->info("Pre-decimate mesh saved to {}", inter.string());
+            }
+            catch (const std::exception& e)
+            {
+                logger->warn("Could not save pre-decimate intermediate: {}", e.what());
+            }
         }
 
         modelrepair::DecimateResult dr;
         try
         {
-            dr = modelrepair::decimate(mesh, decimate_ratio);
+            dr = modelrepair::decimate(mesh, decimate_params);
         }
         catch (const std::exception& e)
         {
@@ -196,6 +213,47 @@ static int run_single_file(
         report.triangles_after    = mesh.num_faces();
         report.surface_area_after = mesh.surface_area();
         report.volume_after       = mesh.volume();
+    }
+
+    // Shell analysis / separation (after all other ops)
+    if (analyze_shells_flag || keep_largest_shell || !export_shells_dir.empty())
+    {
+        auto sr = modelrepair::analyze_shells(mesh);
+        if (!quiet)
+            print_shell_analysis(sr);
+
+        if (!opts.diagnose_only)
+        {
+            if (keep_largest_shell)
+                modelrepair::keep_shells(mesh, 1);
+
+            if (!export_shells_dir.empty())
+            {
+                if (!fs::is_directory(export_shells_dir))
+                {
+                    logger->error("Export-shells directory does not exist: {}",
+                                  export_shells_dir.string());
+                    return 8;
+                }
+                auto shells = modelrepair::split_shells(mesh);
+                const std::string stem = input_path.stem().string();
+                const std::string ext  = output_path.empty()
+                                         ? ".stl"
+                                         : output_path.extension().string();
+                for (std::size_t i = 0; i < shells.size(); ++i)
+                {
+                    fs::path shell_path = export_shells_dir
+                                        / (stem + "_shell_" + std::to_string(i) + ext);
+                    try {
+                        modelrepair::io::save(shells[i], shell_path, !ascii_stl);
+                        logger->info("Shell {} saved to {}", i, shell_path.string());
+                    } catch (const std::exception& e) {
+                        logger->error("Failed to save shell {}: {}", i, e.what());
+                        return 8;
+                    }
+                }
+            }
+        }
     }
 
     // Print report
@@ -220,8 +278,8 @@ static int run_single_file(
         logger->info("Report written to {}", report_path);
     }
 
-    // Save output (skipped in diagnose mode)
-    if (!opts.diagnose_only)
+    // Save output (skipped in diagnose mode, and optional when exporting shells)
+    if (!opts.diagnose_only && !output_path.empty())
     {
         try
         {
@@ -262,19 +320,28 @@ static fs::path batch_output_path(const fs::path& input, const fs::path& output_
 
 static int run_batch(
     const std::vector<fs::path>& inputs,
-    const fs::path& output_dir,
-    const fs::path& batch_report_path,
-    const RepairOptions& opts,
-    bool ascii_stl,
-    bool quiet,
-    bool verbose,
-    double decimate_ratio,
-    unsigned int smooth_iters,
+    const fs::path&              output_dir,
+    const fs::path&              batch_report_path,
+    const RepairOptions&         opts,
+    bool                         ascii_stl,
+    bool                         quiet,
+    bool                         verbose,
+    const DecimateParams&        decimate_params,
+    unsigned int                 smooth_iters,
+    bool                         smooth_vulkan,
+    bool                         analyze_shells_flag,
+    bool                         keep_largest_shell,
+    const fs::path&              export_shells_dir,
     std::shared_ptr<spdlog::logger> logger)
 {
     if (!output_dir.empty() && !fs::is_directory(output_dir))
     {
         logger->error("Output directory does not exist: {}", output_dir.string());
+        return 1;
+    }
+    if (!export_shells_dir.empty() && !fs::is_directory(export_shells_dir))
+    {
+        logger->error("Export-shells directory does not exist: {}", export_shells_dir.string());
         return 1;
     }
 
@@ -324,7 +391,8 @@ static int run_batch(
 
             if (smooth_iters > 0 && !opts.diagnose_only)
             {
-                auto smr = modelrepair::smooth(mesh, smooth_iters, opts.smooth_crease_angle);
+                auto smr = modelrepair::smooth(mesh, smooth_iters, opts.smooth_crease_angle,
+                                               nullptr, smooth_vulkan);
                 StepReport sr;
                 sr.name        = "Smooth";
                 sr.was_run     = true;
@@ -332,7 +400,7 @@ static int run_batch(
                 res.report.steps.push_back(sr);
             }
 
-            if (decimate_ratio > 0.0 && !opts.diagnose_only)
+            if (decimate_params.ratio > 0.0 && !opts.diagnose_only)
             {
                 fs::path inter = out.parent_path()
                                / (out.stem().string() + "_repaired" + out.extension().string());
@@ -343,7 +411,7 @@ static int run_batch(
                     logger->warn("Could not save pre-decimate intermediate: {}", e.what());
                 }
 
-                auto dr = modelrepair::decimate(mesh, decimate_ratio);
+                auto dr = modelrepair::decimate(mesh, decimate_params);
                 StepReport sr;
                 sr.name         = "Decimate";
                 sr.was_run      = true;
@@ -354,6 +422,37 @@ static int run_batch(
                 res.report.triangles_after    = mesh.num_faces();
                 res.report.surface_area_after = mesh.surface_area();
                 res.report.volume_after       = mesh.volume();
+            }
+
+            // Shell analysis / separation
+            if (analyze_shells_flag || keep_largest_shell || !export_shells_dir.empty())
+            {
+                auto sr = modelrepair::analyze_shells(mesh);
+                if (!quiet)
+                {
+                    std::cout << in.filename().string() << " — ";
+                    print_shell_analysis(sr);
+                }
+
+                if (!opts.diagnose_only)
+                {
+                    if (keep_largest_shell)
+                        modelrepair::keep_shells(mesh, 1);
+
+                    if (!export_shells_dir.empty())
+                    {
+                        auto shells = modelrepair::split_shells(mesh);
+                        const std::string stem = in.stem().string();
+                        const std::string ext  = in.extension().string();
+                        for (std::size_t i = 0; i < shells.size(); ++i)
+                        {
+                            fs::path shell_path = export_shells_dir
+                                                / (stem + "_shell_" + std::to_string(i) + ext);
+                            modelrepair::io::save(shells[i], shell_path, !ascii_stl);
+                            logger->info("Shell {} saved to {}", i, shell_path.string());
+                        }
+                    }
+                }
             }
 
             if (!opts.diagnose_only)
@@ -467,6 +566,10 @@ int main(int argc, char* argv[])
 
     app.add_flag("!--no-remove-self-intersections", opts.remove_self_intersections, "Skip self-intersection removal (slow)");
 
+    bool remove_internal = false;
+    app.add_flag("--remove-internal-geometry", remove_internal,
+                 "Remove faces whose centroid is inside the mesh volume (pipeline step 7)");
+
     bool ascii_stl = false;
     app.add_flag("--ascii-stl", ascii_stl, "Write ASCII STL instead of binary");
 
@@ -486,6 +589,15 @@ int main(int argc, char* argv[])
     double       remesh_factor  = 0.0;
     unsigned int remesh_iters   = 3;
     double       smooth_crease  = 45.0;
+    bool         smooth_vulkan  = false;
+
+    std::string  decimate_backend_str  = "cgal";
+    double       decimate_target_error = 0.01;
+    double       decimate_normal_dev   = 15.0;
+
+    bool         analyze_shells_flag = false;
+    bool         keep_largest_shell  = false;
+    fs::path     export_shells_dir;
 
     app.add_flag  ("--diagnose", diagnose,
                    "Report issues without modifying the mesh. OUTPUT is optional.");
@@ -501,9 +613,26 @@ int main(int argc, char* argv[])
     app.add_option("--smooth-crease-angle", smooth_crease,
                    "Dihedral angle threshold for smoothing feature preservation (0–180°, default 45).")
        ->check(CLI::Range(0.0, 180.0));
+    app.add_flag  ("--smooth-vulkan", smooth_vulkan,
+                   "Use GPU (Vulkan) for smoothing when available; falls back to CPU otherwise.");
     app.add_option("--decimate", decimate_ratio,
                    "Decimate after repair: retain this fraction of faces (0.01–1.0).")
        ->check(CLI::Range(0.01, 1.0));
+    app.add_option("--decimate-backend", decimate_backend_str,
+                   "Decimation backend: cgal (default, slow/accurate), meshoptimizer (fast), openmesh (QEM).")
+       ->default_val("cgal");
+    app.add_option("--decimate-target-error", decimate_target_error,
+                   "MeshOptimizer: relative geometric error budget (0.0001–1.0, default 0.01).")
+       ->check(CLI::Range(0.0001, 1.0));
+    app.add_option("--decimate-normal-dev", decimate_normal_dev,
+                   "OpenMesh: normal deviation limit in degrees (1–90, default 15).")
+       ->check(CLI::Range(1.0, 90.0));
+    app.add_flag  ("--analyze-shells", analyze_shells_flag,
+                   "Print connected-component (shell) analysis of the (repaired) mesh.");
+    app.add_flag  ("--keep-largest-shell", keep_largest_shell,
+                   "After repair, discard all but the largest connected component.");
+    app.add_option("--export-shells", export_shells_dir,
+                   "After repair, split mesh into one file per shell and save to this directory. OUTPUT becomes optional.");
 
     // ── batch subcommand ──────────────────────────────────────────────────────
     std::vector<fs::path> batch_inputs;
@@ -522,15 +651,27 @@ int main(int argc, char* argv[])
     CLI11_PARSE(app, argc, argv);
 
     // Apply opts that depend on flags parsed after construction
-    opts.fill_holes_smooth   = !flat_fill;
-    opts.verbose             = verbose;
-    opts.diagnose_only       = diagnose;
-    opts.smooth_crease_angle = smooth_crease;
+    opts.fill_holes_smooth        = !flat_fill;
+    opts.verbose                  = verbose;
+    opts.diagnose_only            = diagnose;
+    opts.smooth_crease_angle      = smooth_crease;
+    opts.remove_internal_geometry = remove_internal;
     if (remesh_factor > 0.0) {
         opts.remesh                    = true;
         opts.remesh_edge_length_factor = remesh_factor;
         opts.remesh_iterations         = remesh_iters;
     }
+
+    // Build DecimateParams
+    DecimateParams decimate_params;
+    decimate_params.ratio            = decimate_ratio;
+    decimate_params.target_error     = decimate_target_error;
+    decimate_params.normal_deviation = decimate_normal_dev;
+    if (decimate_backend_str == "meshoptimizer")
+        decimate_params.backend = DecimateBackend::MeshOptimizer;
+    else if (decimate_backend_str == "openmesh")
+        decimate_params.backend = DecimateBackend::OpenMesh;
+    // else: default CGAL
 
     // Configure logging
     auto logger = spdlog::stdout_color_mt("model-repair");
@@ -546,7 +687,9 @@ int main(int argc, char* argv[])
     {
         return run_batch(batch_inputs, batch_output_dir, batch_report_path,
                          opts, ascii_stl, quiet, verbose,
-                         decimate_ratio, smooth_iters, logger);
+                         decimate_params, smooth_iters, smooth_vulkan,
+                         analyze_shells_flag, keep_largest_shell, export_shells_dir,
+                         logger);
     }
 
     // Single-file mode: validate required args that were made optional above
@@ -555,12 +698,15 @@ int main(int argc, char* argv[])
         std::cerr << "INPUT is required in single-file mode. Use 'model-repair --help'.\n";
         return 1;
     }
-    if (!diagnose && output_path.empty())
+    if (!diagnose && output_path.empty() && export_shells_dir.empty())
     {
-        std::cerr << "OUTPUT is required unless --diagnose is used.\n";
+        std::cerr << "OUTPUT is required unless --diagnose or --export-shells is used.\n";
         return 1;
     }
 
     return run_single_file(input_path, output_path, opts, ascii_stl, quiet, verbose,
-                           report_path, report_format, decimate_ratio, smooth_iters, logger);
+                           report_path, report_format,
+                           decimate_params, smooth_iters, smooth_vulkan,
+                           analyze_shells_flag, keep_largest_shell, export_shells_dir,
+                           logger);
 }
