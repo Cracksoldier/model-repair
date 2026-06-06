@@ -59,8 +59,9 @@ NormalMapDisplaceResult displace_from_normal_map(Mesh& mesh,
 
     // Compute per-vertex normals (used as displacement direction).
     using VNMap = SurfMesh::Property_map<SurfMesh::Vertex_index, Kernel::Vector_3>;
-    auto [vn_map, vn_ok] = sm.add_property_map<SurfMesh::Vertex_index, Kernel::Vector_3>(
+    auto [vn_map, vn_created] = sm.add_property_map<SurfMesh::Vertex_index, Kernel::Vector_3>(
         "v:nml_tmp", Kernel::Vector_3(0, 0, 1));
+    (void)vn_created;
     PMP::compute_vertex_normals(sm, vn_map);
 
     // Displace each vertex along its normal based on the pseudo-height sampled
@@ -92,10 +93,12 @@ NormalMapDisplaceResult displace_from_normal_map(Mesh& mesh,
         if (params.flip_green)
             g = 1.0f - g;
 
-        // Decode tangent-space normal from [0,1] to [-1,1].
-        // For pseudo-height, we only use the Z/blue component.
-        const float nz          = b * 2.0f - 1.0f;
-        const float pseudo_height = 1.0f - nz;         // flat→0, steep→2
+        // Decode tangent-space normal Z from [0,1] to [-1,1].
+        // Pseudo-height: flat surface (nz=1) → 0, fully tilted (nz=-1) → 1.
+        // Multiplying by 0.5 normalises the range to [0,1] so displacement_strength
+        // is the true maximum push (not 2×).
+        const float nz            = b * 2.0f - 1.0f;
+        const float pseudo_height = (1.0f - nz) * 0.5f;
         const float displacement  = pseudo_height * params.displacement_strength;
 
         // Move vertex along its geometric normal.

@@ -35,18 +35,22 @@ SubdivisionResult subdivide(Mesh& mesh, unsigned int iterations, SubdivisionMeth
         }
 
         // Interpolate UV for vertices added by this subdivision pass.
-        // Each new vertex is placed at an edge midpoint whose two endpoint vertices
-        // (both "old") are the only reliable UV sources at this stage.
+        // Pass 1: average from OLD neighbours only (correct for Loop edge-midpoints).
+        // Pass 2: for vertices that got no old neighbours (Catmull-Clark face centroids
+        //         are adjacent only to other new edge-midpoint vertices), average from
+        //         all neighbours — those new neighbours already have UVs from pass 1.
         if (has_uv)
         {
             auto uv_opt = sm.property_map<SurfMesh::Vertex_index, UV2>("v:uv");
             if (uv_opt.has_value())
             {
                 auto& uv_map = *uv_opt;
+                bool need_second_pass = false;
+
                 for (auto v : sm.vertices())
                 {
                     if (static_cast<SurfMesh::size_type>(v) < n_before)
-                        continue;  // old vertex — UV already valid
+                        continue;
                     if (sm.is_isolated(v) || sm.halfedge(v) == SurfMesh::null_halfedge())
                         continue;
 
@@ -64,6 +68,37 @@ SubdivisionResult subdivide(Mesh& mesh, unsigned int iterations, SubdivisionMeth
                     }
                     if (cnt > 0)
                         uv_map[v] = {su / cnt, sv / cnt};
+                    else
+                        need_second_pass = true;
+                }
+
+                // Second pass: vertices with no old neighbours (Catmull-Clark face
+                // centroids) average from all 1-ring neighbours, which now have valid
+                // UVs from the first pass.
+                if (need_second_pass)
+                {
+                    for (auto v : sm.vertices())
+                    {
+                        if (static_cast<SurfMesh::size_type>(v) < n_before)
+                            continue;
+                        if (sm.is_isolated(v) || sm.halfedge(v) == SurfMesh::null_halfedge())
+                            continue;
+                        // Skip vertices already assigned in pass 1.
+                        if (uv_map[v][0] != 0.f || uv_map[v][1] != 0.f)
+                            continue;
+
+                        float su = 0.f, sv = 0.f;
+                        int   cnt = 0;
+                        for (auto h : CGAL::halfedges_around_target(sm.halfedge(v), sm))
+                        {
+                            auto nb = sm.source(h);
+                            su  += uv_map[nb][0];
+                            sv  += uv_map[nb][1];
+                            ++cnt;
+                        }
+                        if (cnt > 0)
+                            uv_map[v] = {su / cnt, sv / cnt};
+                    }
                 }
             }
         }

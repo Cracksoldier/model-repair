@@ -131,6 +131,32 @@ Mesh read_obj(const std::filesystem::path& path)
         }
     }
 
+    // Accumulate per-vertex UV BEFORE orient_polygon_soup so that the corner→vertex
+    // correspondence in face_uv_indices is still valid.  orient_polygon_soup may
+    // reverse polygon winding (changing polygons[fi][ci] without touching
+    // face_uv_indices[fi][ci]) or remove duplicate polygons, both of which would
+    // mis-map UVs if the accumulation happened after the call.
+    const std::size_t n_pts = points.size();
+    std::vector<float> uv_sum_u(n_pts, 0.f), uv_sum_v(n_pts, 0.f);
+    std::vector<int>   uv_cnt(n_pts, 0);
+    if (any_uv && all_uvs && !uv_coords.empty())
+    {
+        for (std::size_t fi = 0; fi < polygons.size(); ++fi)
+        {
+            for (std::size_t ci = 0; ci < polygons[fi].size(); ++ci)
+            {
+                const std::size_t vi  = polygons[fi][ci];
+                const int         vti = face_uv_indices[fi][ci];
+                if (vi < n_pts && vti >= 0 && vti < static_cast<int>(uv_coords.size()))
+                {
+                    uv_sum_u[vi] += uv_coords[vti][0];
+                    uv_sum_v[vi] += uv_coords[vti][1];
+                    ++uv_cnt[vi];
+                }
+            }
+        }
+    }
+
     // Snapshot before orient_polygon_soup, which may append points for non-manifold fans.
     const std::size_t n_points_before_orient = points.size();
     const std::size_t n_colors = soup_colors.size();
@@ -152,39 +178,19 @@ Mesh read_obj(const std::filesystem::path& path)
         }
     }
 
-    // Attach per-vertex UV map when all face corners had UV indices and
-    // orient_polygon_soup did not add extra points (same guard used for colors).
+    // Attach pre-computed per-vertex UV map, same guard as colors.
     if (any_uv && all_uvs && !uv_coords.empty()
         && mesh.cgal().number_of_vertices() == n_points_before_orient)
     {
-        const std::size_t nv = n_points_before_orient;
-        std::vector<float> sum_u(nv, 0.f), sum_v_acc(nv, 0.f);
-        std::vector<int>   cnt(nv, 0);
-
-        for (std::size_t fi = 0; fi < polygons.size(); ++fi)
-        {
-            for (std::size_t ci = 0; ci < polygons[fi].size(); ++ci)
-            {
-                const std::size_t vi  = polygons[fi][ci];
-                const int         vti = face_uv_indices[fi][ci];
-                if (vi < nv && vti >= 0 && vti < static_cast<int>(uv_coords.size()))
-                {
-                    sum_u[vi]    += uv_coords[vti][0];
-                    sum_v_acc[vi] += uv_coords[vti][1];
-                    ++cnt[vi];
-                }
-            }
-        }
-
         auto [umap, ok] = mesh.cgal().add_property_map<SurfMesh::Vertex_index, UV2>(
             "v:uv", UV2{0.f, 0.f});
         if (ok)
         {
-            for (std::size_t i = 0; i < nv; ++i)
+            for (std::size_t i = 0; i < n_points_before_orient; ++i)
             {
-                if (cnt[i] > 0)
+                if (uv_cnt[i] > 0)
                     umap[SurfMesh::Vertex_index(static_cast<SurfMesh::size_type>(i))] =
-                        {sum_u[i] / cnt[i], sum_v_acc[i] / cnt[i]};
+                        {uv_sum_u[i] / uv_cnt[i], uv_sum_v[i] / uv_cnt[i]};
             }
         }
     }

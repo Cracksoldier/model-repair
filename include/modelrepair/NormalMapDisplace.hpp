@@ -24,8 +24,8 @@ struct NormalMapDisplaceResult
 
 // Displace mesh vertices using pseudo-height derived from a tangent-space normal map.
 // Requires the mesh to have a "v:uv" vertex property map (load from OBJ with UV data).
-// The blue/Z channel encodes surface slope: flat regions (nz≈1) produce no displacement;
-// steep regions (nz≈0) are pushed outward by displacement_strength mm.
+// The blue/Z channel encodes surface slope: flat regions (nz≈1) → no displacement;
+// maximally tilted regions (nz≈-1) → displacement_strength mm of outward push.
 // Throws std::runtime_error when the mesh has no UV map or the image cannot be loaded.
 NormalMapDisplaceResult displace_from_normal_map(Mesh& mesh,
                                                   const NormalMapDisplaceParams& params);
