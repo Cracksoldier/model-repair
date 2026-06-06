@@ -63,7 +63,8 @@ void box_blur(std::vector<float>& img, int W, int H, float radius)
 
 NormalToDisplacementResult normal_to_displacement(
     const std::string& normal_map_path,
-    const NormalToDisplacementSettings& settings)
+    const NormalToDisplacementSettings& settings,
+    std::function<bool(int)> on_iteration)
 {
     const auto t0 = std::chrono::steady_clock::now();
 
@@ -166,19 +167,47 @@ NormalToDisplacementResult normal_to_displacement(
     SpMat A(N, N);
     A.setFromTriplets(trips.begin(), trips.end());
 
-    // ── 5. Solve with ConjugateGradient + IncompleteCholesky preconditioner ─────
+    // ── 5. Solve with manual PCG + IncompleteCholesky preconditioner ────────────
     // IC dramatically reduces the effective condition number of the 2D Laplacian
-    // compared to the Jacobi (diagonal) preconditioner: convergence in ~50–150
-    // iterations instead of ~3000 for a 1024×1024 grid.
-    Eigen::ConjugateGradient<SpMat, Eigen::Lower,
-                             Eigen::IncompleteCholesky<float>> cg;
-    cg.setMaxIterations(settings.solver_max_iter);
-    cg.setTolerance(1e-5f);
-    cg.compute(A);
-    const Eigen::VectorXf h_vec = cg.solve(b);
+    // compared to Jacobi: convergence in ~50–150 iterations instead of ~3000 for
+    // a 1024×1024 grid.  The manual loop lets us call on_iteration() after each
+    // step for progress reporting and cooperative cancellation.
+    Eigen::IncompleteCholesky<float, Eigen::Lower> ic;
+    ic.compute(A);
+
+    Eigen::VectorXf x  = Eigen::VectorXf::Zero(N);
+    Eigen::VectorXf r  = b;               // r₀ = b − A·0 = b
+    Eigen::VectorXf z  = ic.solve(r);     // z₀ = M⁻¹ r₀
+    Eigen::VectorXf p  = z;
+    float           rz = r.dot(z);
+
+    // Stopping criterion: ‖r‖ < 1e-5 · ‖b‖  (same as Eigen's default)
+    const float tol_sq = 1e-10f * b.squaredNorm();
+
+    int  iter      = 0;
+    bool converged = false;
+
+    for (; iter < settings.solver_max_iter; ++iter)
+    {
+        const Eigen::VectorXf Ap  = A.selfadjointView<Eigen::Lower>() * p;
+        const float           pAp = p.dot(Ap);
+        const float           alpha = rz / pAp;
+
+        x += alpha * p;
+        r -= alpha * Ap;
+
+        if (r.squaredNorm() <= tol_sq) { converged = true; ++iter; break; }
+
+        z              = ic.solve(r);
+        const float rz_new = r.dot(z);
+        p              = z + (rz_new / rz) * p;
+        rz             = rz_new;
+
+        if (on_iteration && !on_iteration(iter + 1)) break;   // cooperative cancel
+    }
 
     // ── 6. Post-processing ────────────────────────────────────────────────────
-    std::vector<float> height(h_vec.data(), h_vec.data() + N);
+    std::vector<float> height(x.data(), x.data() + N);
 
     if (settings.blur_radius >= 0.5f)
         box_blur(height, W, H, settings.blur_radius);
@@ -205,10 +234,8 @@ NormalToDisplacementResult normal_to_displacement(
 
     const float ms = std::chrono::duration<float, std::milli>(
         std::chrono::steady_clock::now() - t0).count();
-    const int   iters     = static_cast<int>(cg.iterations());
-    const bool  converged = (cg.info() == Eigen::Success);
 
-    return {std::move(height), W, H, ms, iters, converged};
+    return {std::move(height), W, H, ms, iter, converged};
 }
 
 } // namespace modelrepair

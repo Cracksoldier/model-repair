@@ -162,6 +162,10 @@ NormalToDisplacementWindow::NormalToDisplacementWindow(QWidget* parent)
             &QFutureWatcher<modelrepair::NormalToDisplacementResult>::finished,
             this,
             &NormalToDisplacementWindow::on_result_ready);
+    connect(watcher_,
+            &QFutureWatcher<modelrepair::NormalToDisplacementResult>::progressValueChanged,
+            this,
+            &NormalToDisplacementWindow::on_progress);
 
     connect(btn_run_,    &QPushButton::clicked,
             this, &NormalToDisplacementWindow::on_run_clicked);
@@ -202,7 +206,8 @@ void NormalToDisplacementWindow::set_running(bool running)
     btn_export_->setEnabled(!running && !result_.height.empty());
     progress_bar_->setVisible(running);
     if (running) {
-        cancelled_ = false;
+        progress_bar_->setRange(0, spin_iters_->value());
+        progress_bar_->setValue(0);
         elapsed_clock_.start();
         lbl_elapsed_->setText("0:00");
         elapsed_timer_->start();
@@ -262,16 +267,36 @@ void NormalToDisplacementWindow::on_run_clicked()
 
     const std::string path_str = path.toStdString();
     const modelrepair::NormalToDisplacementSettings s = collect_settings();
+    const int max_iter = s.solver_max_iter;
 
     watcher_->setFuture(QtConcurrent::run(
-        [path_str, s]() -> modelrepair::NormalToDisplacementResult
+        [path_str, s, max_iter]
+        (QPromise<modelrepair::NormalToDisplacementResult>& promise)
         {
-            return modelrepair::normal_to_displacement(path_str, s);
+            promise.setProgressRange(0, max_iter);
+            promise.setProgressValue(0);
+
+            auto on_iter = [&](int iter) -> bool {
+                if (promise.isCanceled()) return false;
+                promise.setProgressValue(iter);
+                return true;
+            };
+
+            auto result = modelrepair::normal_to_displacement(path_str, s, on_iter);
+            if (!promise.isCanceled())
+                promise.addResult(std::move(result));
         }));
 }
 
 void NormalToDisplacementWindow::on_result_ready()
 {
+    if (watcher_->future().isCanceled()) {
+        set_running(false);
+        lbl_elapsed_->clear();
+        lbl_status_->setText("Cancelled.");
+        return;
+    }
+
     try
     {
         result_ = watcher_->result();
@@ -309,14 +334,6 @@ void NormalToDisplacementWindow::on_result_ready()
 
     set_running(false);   // result_ is now populated; Export enabled via set_running
 
-    if (cancelled_) {
-        result_ = {};
-        btn_export_->setEnabled(false);
-        lbl_elapsed_->clear();
-        lbl_status_->setText("Cancelled.");
-        return;
-    }
-
     const QString conv_info = result_.solver_converged
         ? QString("%1 iters").arg(result_.solver_iterations)
         : QString("%1 iters \xe2\x80\x94 not converged (try more iterations or a smaller image)")
@@ -332,7 +349,7 @@ void NormalToDisplacementWindow::on_result_ready()
 
 void NormalToDisplacementWindow::on_cancel_clicked()
 {
-    cancelled_ = true;
+    watcher_->cancel();
     btn_cancel_->setEnabled(false);
     lbl_status_->setText("Cancelling\xe2\x80\xa6");
 }
@@ -340,6 +357,17 @@ void NormalToDisplacementWindow::on_cancel_clicked()
 void NormalToDisplacementWindow::on_elapsed_tick()
 {
     lbl_elapsed_->setText(gui::fmt_elapsed(elapsed_clock_.elapsed()));
+}
+
+void NormalToDisplacementWindow::on_progress(int iter)
+{
+    progress_bar_->setValue(iter);
+    if (iter > 0) {
+        const qint64 elapsed = elapsed_clock_.elapsed();
+        const qint64 eta     = elapsed / iter * (progress_bar_->maximum() - iter);
+        lbl_elapsed_->setText(
+            gui::fmt_elapsed(elapsed) + " / ~" + gui::fmt_elapsed(eta));
+    }
 }
 
 void NormalToDisplacementWindow::on_export_clicked()

@@ -36,6 +36,7 @@ private slots:
     void on_cancel_clicked();
     void on_export_clicked();
     void on_result_ready();
+    void on_progress(int iter);
     void on_elapsed_tick();
 
 private:
@@ -63,8 +64,7 @@ private:
     QLabel*       lbl_status_;
     QLabel*       lbl_elapsed_;
 
-    // Cancel / timer state
-    bool          cancelled_     = false;
+    // Timer state
     QElapsedTimer elapsed_clock_;
     QTimer*       elapsed_timer_ = nullptr;
 

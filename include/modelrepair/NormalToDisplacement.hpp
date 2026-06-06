@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -31,8 +32,12 @@ struct NormalToDisplacementResult
 // reconstruction of the gradient field derived from the normal vectors.
 // No mesh is required — this is a pure image-in / image-out operation.
 // Throws std::runtime_error if the image cannot be loaded.
+//
+// on_iteration(iter_1based) is called after each CG iteration.
+// Return false to cancel; the result will be marked not converged.
 NormalToDisplacementResult normal_to_displacement(
     const std::string& normal_map_path,
-    const NormalToDisplacementSettings& settings = {});
+    const NormalToDisplacementSettings& settings = {},
+    std::function<bool(int)> on_iteration = nullptr);
 
 } // namespace modelrepair
