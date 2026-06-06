@@ -278,6 +278,7 @@
       <a href="#remesh-workflow" class="sub">Workflow tips</a>
       <a href="#decimate">Mesh Decimation</a>
       <a href="#subdivide">Subdivision</a>
+      <a href="#normal-map-displacement">Normal Map Displacement</a>
       <a href="#shells">Shell Separation</a>
       <a href="#wall-thickness">Wall Thickness Heatmap</a>
       <a href="#overhang">Overhang Highlight</a>
@@ -1393,6 +1394,101 @@ std::cout &lt;&lt; sr.faces_before &lt;&lt; <span class="str">" → "</span> &lt
 modelrepair::subdivide(mesh, <span class="val">1</span>, modelrepair::SubdivisionMethod::CatmullClark);</pre>
     </section>
 
+    <!-- ── Normal Map Displacement ───────────────────────────────── -->
+    <section id="normal-map-displacement" class="anchor">
+      <h2>Normal Map Displacement <span style="font-size:0.75em;color:var(--orange);font-weight:500;">[highly experimental]</span></h2>
+      <p>
+        Normal Map Displacement bakes surface detail from a tangent-space normal map image
+        into real displaced geometry. This is useful when a character model or prop was designed
+        to rely on a normal-map shader for surface detail — displacement converts that shader
+        detail into actual printable geometry.
+      </p>
+
+      <div class="callout warn">
+        <strong>Highly experimental.</strong>
+        Results depend strongly on UV quality and normal map type. The pseudo-height derivation
+        is a heuristic; for production use a proper height-map bake from your DCC tool is more
+        accurate. Only OBJ files with complete UV data are currently supported.
+      </div>
+
+      <h3>How it works</h3>
+      <ol>
+        <li>
+          <strong>Pre-subdivide</strong> — run <em>N</em> passes of Loop subdivision to increase
+          vertex density so there are enough vertices to capture normal-map detail.
+          UV coordinates are propagated to new vertices automatically.
+        </li>
+        <li>
+          <strong>Sample the normal map</strong> — for each vertex, look up the pixel at the
+          vertex's UV coordinate (nearest-neighbour, with <code>flip_y_uv</code> to correct
+          for image vs UV Y-axis orientation).
+        </li>
+        <li>
+          <strong>Decode pseudo-height</strong> — the blue/Z channel encodes how "tilted" the
+          surface is. After decoding to <code>[-1, 1]</code>:
+          <pre>pseudo_height = (1.0 − nz) × 0.5</pre>
+          Flat regions (<code>nz ≈ 1</code>) → <code>pseudo_height ≈ 0</code> (no displacement).
+          Maximally tilted regions (<code>nz ≈ −1</code>) → <code>pseudo_height ≈ 1</code>
+          (full <code>displacement_strength</code> push).
+        </li>
+        <li>
+          <strong>Displace</strong> — move each vertex outward along its geometric normal by
+          <code>pseudo_height × displacement_strength</code> mm.
+        </li>
+      </ol>
+
+      <div class="callout info">
+        <strong>UV coordinates required.</strong>
+        The mesh must have a <code>"v:uv"</code> vertex property map. Load an OBJ file
+        exported from Blender/Maya/etc. with UV data included. STL and 3MF files have no
+        UV support. The displacement accordion in Wizard Phase 2 is disabled and shows a
+        warning when the loaded mesh has no UV map.
+      </div>
+
+      <h3>Parameters</h3>
+      <table>
+        <thead><tr><th>Parameter</th><th class="td-type">Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>normal_map_path</code></td><td class="td-type">string</td><td></td><td>Path to a tangent-space normal map image (PNG, JPG, TGA, BMP). Loaded with stb_image.</td></tr>
+          <tr><td><code>displacement_strength</code></td><td class="td-type">float</td><td class="td-default">0.3</td><td>Maximum outward displacement in mesh units (mm). Flat surfaces are not displaced; maximally tilted surfaces are pushed by this full amount.</td></tr>
+          <tr><td><code>pre_subdivisions</code></td><td class="td-type">int</td><td class="td-default">2</td><td>Number of Loop subdivision passes to run before displacing (0–4). Each pass quadruples the face count.</td></tr>
+          <tr><td><code>flip_green</code></td><td class="td-type">bool</td><td class="td-default">false</td><td>Invert the green/Y channel. Enable for DirectX-convention normal maps (Y points down); leave off for OpenGL convention (Y points up).</td></tr>
+          <tr><td><code>flip_y_uv</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Flip the V coordinate before sampling (<code>fv = 1 − fv</code>). Required because image Y=0 is the top row while UV Y=0 is the bottom.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>API</h3>
+      <pre><span class="kw">#include</span> <span class="str">"modelrepair/NormalMapDisplace.hpp"</span>
+
+modelrepair::NormalMapDisplaceParams p;
+p.normal_map_path        = <span class="str">"surface_normal.png"</span>;
+p.displacement_strength  = <span class="val">0.3f</span>;   <span class="cmt">// mm</span>
+p.pre_subdivisions       = <span class="val">2</span>;
+p.flip_green             = <span class="val">false</span>;  <span class="cmt">// OpenGL normal map</span>
+
+<span class="cmt">// Mesh must have UV data (loaded from OBJ with UV coordinates).
+// Throws std::runtime_error if no UV map or image cannot be loaded.</span>
+modelrepair::NormalMapDisplaceResult r =
+    modelrepair::displace_from_normal_map(mesh, p);
+std::cout &lt;&lt; r.faces_before &lt;&lt; <span class="str">" → "</span> &lt;&lt; r.faces_after
+          &lt;&lt; <span class="str">" faces  ("</span> &lt;&lt; r.duration_ms &lt;&lt; <span class="str">" ms)\n"</span>;</pre>
+
+      <h3>Wizard UI</h3>
+      <p>
+        The Normal Map Displacement accordion is the fourth section in Wizard Phase 2
+        (after Remesh, Smooth, and Subdivide). It is greyed out and replaced by a warning
+        message when the loaded mesh has no UV coordinates — load an OBJ with UV data first.
+        When enabled, browse for the normal map image, set displacement strength and
+        pre-subdivide passes, and optionally tick "Flip green channel" for DirectX normal maps.
+      </p>
+      <p>
+        Because the feature is highly experimental, results may be noisy, exhibit UV-seam
+        artefacts, or look incorrect if the UV layout has overlapping islands. The
+        <strong>← Adjust settings</strong> button in the Phase 2 preview lets you revert and
+        try different parameters without re-running Phases 1–2 from scratch.
+      </p>
+    </section>
+
     <!-- ── Shell Separation ────────────────────────────────────────── -->
     <section id="shells" class="anchor">
       <h2>Shell Separation</h2>
@@ -2201,6 +2297,7 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
           <tr><td>Smooth</td><td>Off</td><td>Iterations 1–50 (default 3), crease angle 0–180° (default 45° — edges sharper than this are preserved as hard features). Uses all CPU cores via TBB, or optionally the GPU via Vulkan.</td></tr>
           <tr><td>Use GPU (Vulkan) <em>(smooth only)</em></td><td>Off</td><td>Hidden when Vulkan is unavailable at runtime. Only enabled when Smooth is checked.</td></tr>
           <tr><td>Subdivide</td><td>Off</td><td>Loop (triangles) or Catmull-Clark (general), 1–4 iterations. A warning appears when the resulting face count would exceed 2 000 000.</td></tr>
+          <tr><td>Normal Map Displacement <em>[highly experimental]</em></td><td>Off</td><td>Disabled (greyed out) when the loaded mesh has no UV coordinates. Requires a path to a tangent-space normal PNG/JPG/TGA. Displacement strength 0.01–5.0 mm (default 0.3); pre-subdivide passes 0–4 (default 2); optional Flip green channel (DirectX maps). See <a href="#normal-map-displacement">Normal Map Displacement</a>.</td></tr>
         </tbody>
       </table>
       <p>
@@ -2212,7 +2309,7 @@ Valid: yes   Manifold: yes   Closed: yes</pre>
         under smooth when iterations exceed 10, and under subdivide when
         <code>face_count × 4<sup>iters</sup> &gt; 2 000 000</code>. Click <strong>Skip this phase</strong>
         to proceed directly to Phase 3. Progress tracks one slot per remesh iteration, one slot
-        per smooth iteration, and one slot for subdivision. After the phase completes, a
+        per smooth iteration, one slot for subdivision, and one slot for normal map displacement. After the phase completes, a
         <strong>← Adjust settings</strong> button appears in the preview — clicking it reverts
         the mesh to its pre-phase state and returns to the options page with all parameter values
         intact, so you can tweak them and re-run without restarting the wizard.
@@ -2413,6 +2510,7 @@ std::cout &lt;&lt; report.format_text();
           <tr><td><code>is_manifold()</code></td><td class="td-type">bool</td><td>All edges shared by exactly 2 faces.</td></tr>
           <tr><td><code>surface_area()</code></td><td class="td-type">double</td><td>Surface area via <code>PMP::area()</code>. Always valid.</td></tr>
           <tr><td><code>volume()</code></td><td class="td-type">optional&lt;double&gt;</td><td>Volume via <code>PMP::volume()</code>. Returns <code>nullopt</code> when the mesh is not closed.</td></tr>
+          <tr><td><code>has_uv()</code></td><td class="td-type">bool</td><td>Returns <code>true</code> when the mesh carries a <code>"v:uv"</code> per-vertex UV property map (type <code>std::array&lt;float,2&gt;</code>). Required for Normal Map Displacement.</td></tr>
           <tr><td><code>cgal()</code></td><td class="td-type">CGAL::Surface_mesh&amp;</td><td>Direct access to the underlying CGAL mesh for advanced operations.</td></tr>
         </tbody>
       </table>
@@ -2509,12 +2607,11 @@ modelrepair::DecimateResult modelrepair::decimate(Mesh&amp; mesh, <span class="k
       <h3>OBJ (Wavefront)</h3>
       <p>
         A text format that supports shared vertices, material references, and UV coordinates.
-        Only triangle geometry is processed; materials and UV maps are ignored on load and
-        not written on save.
+        Only triangle geometry is processed; materials are not written on save.
       </p>
       <ul>
-        <li><strong>Read</strong>: Triangulated on load. Quads and higher-order polygons are not supported. Per-vertex RGB color is read when all <code>v</code> lines have the optional <code>r g b</code> suffix (Meshlab / CloudCompare extension); stored as a <code>"v:color"</code> property map.</li>
-        <li><strong>Write</strong>: Plain triangulated OBJ, no materials. When a <code>"v:color"</code> property map is present, each vertex line is written as <code>v x y z r g b</code> (r/g/b in [0,1]).</li>
+        <li><strong>Read</strong>: Triangulated on load. Quads and higher-order polygons are not supported. Per-vertex RGB color is read when all <code>v</code> lines have the optional <code>r g b</code> suffix (Meshlab / CloudCompare extension); stored as a <code>"v:color"</code> property map. UV coordinates are read from <code>vt u v</code> lines and the <code>/vt</code> slot of face entries (<code>f v/vt/vn</code>); per-corner UVs are averaged into a per-vertex <code>"v:uv"</code> property map (<code>UV2 = std::array&lt;float,2&gt;</code>). The UV map is attached only when every face corner has a UV index and the mesh did not gain extra vertices during polygon-soup orientation. This UV data is required for <a href="#normal-map-displacement">Normal Map Displacement</a>.</li>
+        <li><strong>Write</strong>: Plain triangulated OBJ, no materials. When a <code>"v:color"</code> property map is present, each vertex line is written as <code>v x y z r g b</code> (r/g/b in [0,1]). UV data is not currently written back.</li>
       </ul>
 
       <h3>3MF (3D Manufacturing Format)</h3>

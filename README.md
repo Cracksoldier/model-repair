@@ -9,7 +9,7 @@ Ships as two frontends over a shared C++ library:
 
 Supported formats: **STL** (binary + ASCII), **OBJ**, **3MF**, **PLY** (ASCII + binary LE/BE), **GLB/glTF**.
 
-Per-vertex RGB color is preserved round-trip for PLY, OBJ (the `v x y z r g b` extension), and GLB/glTF (`COLOR_0` attribute). UV/texture maps are out of scope.
+Per-vertex RGB color is preserved round-trip for PLY, OBJ (the `v x y z r g b` extension), and GLB/glTF (`COLOR_0` attribute). UV coordinates are read from OBJ files (`vt` lines) and stored as a per-vertex map — enabling Normal Map Displacement in the Wizard.
 
 ---
 
@@ -155,7 +155,7 @@ cmake --build build/minimal -j$(nproc)
 4. A **Before / After 3D preview window** opens automatically when repair completes — rotate with left-drag, pan with right-drag, zoom with scroll wheel; both views are camera-synced
 5. Review the per-step report in the main window
 6. Click **Save As…** to export the repaired mesh
-7. Or click **Wizard…** for a guided three-phase workflow: Phase 1 repairs the mesh, Phase 2 optionally remeshes/smooths it, Phase 3 optionally decimates it — each phase shows a before/after 3D preview before you commit
+7. Or click **Wizard…** for a guided three-phase workflow: Phase 1 repairs the mesh, Phase 2 optionally remeshes/smooths/subdivides it and can bake a normal map into geometry [highly experimental], Phase 3 optionally decimates it — each phase shows a before/after 3D preview before you commit
 
 ### CLI
 
@@ -370,7 +370,8 @@ libmodelrepair.so              (shared library — LGPL-safe via dynamic linking
 ├── WallThickness              Per-face AABB ray-cast thickness analysis
 ├── ShellSeparation            Connected-component detection, keep/split shells
 ├── RemoveInternalGeometry     Centroid inside-test, removes hidden faces
-├── Subdivide                  Loop / Catmull-Clark mesh subdivision
+├── Subdivide                  Loop / Catmull-Clark mesh subdivision (UV-propagating)
+├── NormalMapDisplace          Bake tangent-space normal map detail into geometry
 └── io/                        STL / OBJ / 3MF / PLY / GLB / GLTF readers and writers
 
 model-repair                   CLI frontend (links libmodelrepair)
@@ -405,6 +406,7 @@ model-repair/
 │   ├── ShellSeparation.hpp
 │   ├── RemoveInternalGeometry.hpp
 │   ├── Subdivide.hpp
+│   ├── NormalMapDisplace.hpp
 │   ├── Remesh.hpp
 │   ├── Smooth.hpp
 │   ├── Decimate.hpp
