@@ -279,6 +279,7 @@
       <a href="#decimate">Mesh Decimation</a>
       <a href="#subdivide">Subdivision</a>
       <a href="#normal-map-displacement">Normal Map Displacement</a>
+      <a href="#normal-to-displacement">Normal Map → Height Map</a>
       <a href="#shells">Shell Separation</a>
       <a href="#wall-thickness">Wall Thickness Heatmap</a>
       <a href="#overhang">Overhang Highlight</a>
@@ -1486,6 +1487,112 @@ std::cout &lt;&lt; r.faces_before &lt;&lt; <span class="str">" → "</span> &lt;
         artefacts, or look incorrect if the UV layout has overlapping islands. The
         <strong>← Adjust settings</strong> button in the Phase 2 preview lets you revert and
         try different parameters without re-running Phases 1–2 from scratch.
+      </p>
+    </section>
+
+    <!-- ── Normal Map → Displacement Map ────────────────────────────── -->
+    <section id="normal-to-displacement" class="anchor">
+      <h2>Normal Map → Height Map Converter</h2>
+      <p>
+        The <strong>Normal Map → Displacement Map</strong> tool converts a tangent-space normal map
+        image into a physically correct grayscale height map using Poisson reconstruction of the
+        gradient field. Unlike the mesh-based <a href="#normal-map-displacement">Normal Map Displacement</a>
+        feature, this tool is a standalone image-in / image-out operation — <strong>no mesh is required</strong>.
+        The output is a 16-bit PNG suitable for use as a displacement map in a renderer, sculpting
+        application, or CNC milling workflow.
+      </p>
+
+      <div class="callout info">
+        <strong>Where to find it.</strong>
+        Open the <strong>Tools</strong> dropdown in the toolbar at the top of the main window and select
+        <strong>Normal Map → Displacement</strong>. The tool opens as a separate non-modal window; you can
+        keep it open alongside the main repair workflow.
+      </div>
+
+      <h3>How it works</h3>
+      <ol>
+        <li>
+          <strong>Load &amp; decode</strong> — the normal map is loaded with stb_image and each RGB pixel
+          is decoded to a unit normal vector <code>(nx, ny, nz) ∈ [−1, 1]³</code>. Enabling
+          <em>Flip green channel</em> negates <code>ny</code> for DirectX-convention maps.
+        </li>
+        <li>
+          <strong>Build gradient field</strong> — the surface gradient of the height map is derived from
+          the tangent normals:
+          <pre>gx = −nx / max(nz, ε) × gradient_strength
+gy = −ny / max(nz, ε) × gradient_strength</pre>
+          Values are clamped to ±20 to suppress artefacts from near-horizontal normals.
+        </li>
+        <li>
+          <strong>Compute divergence</strong> — backward finite differences give <code>∂gx/∂x + ∂gy/∂y</code>,
+          which forms the right-hand side of the Poisson equation.
+        </li>
+        <li>
+          <strong>Poisson solve</strong> — an <code>N×N</code> sparse Laplacian (5-point stencil, Neumann
+          boundary conditions at image edges, Dirichlet <code>h[0,0] = 0</code> to anchor the solution) is
+          assembled and solved with Eigen's <code>ConjugateGradient</code> + diagonal preconditioner.
+          The solver runs iteratively up to the configured iteration limit.
+        </li>
+        <li>
+          <strong>Post-process</strong> — optional box blur (smooths solver noise), normalize to [0, 1],
+          apply contrast, optionally invert.
+        </li>
+        <li>
+          <strong>Export</strong> — the height map is saved as a 16-bit grayscale PNG
+          (<code>QImage::Format_Grayscale16</code>), preserving the full dynamic range.
+        </li>
+      </ol>
+
+      <div class="callout warn">
+        <strong>Image size limit: 8 megapixels (≈ 2828 × 2828).</strong>
+        The Poisson solve requires an <em>N × N</em> sparse matrix where <em>N</em> is the pixel count.
+        At 1024 × 1024 (~1 MP) the solve takes a few seconds; at 2048 × 2048 (~4 MP) it may take
+        30–60 s and needs ~240 MB of RAM. Images larger than 8 MP are rejected with a clear error
+        message — downsample first in an image editor if needed.
+      </div>
+
+      <h3>Settings</h3>
+      <table>
+        <thead><tr><th>Setting</th><th class="td-type">Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>flip_green</code></td><td class="td-type">bool</td><td class="td-default">false</td><td>Negate the green/Y channel. Enable for DirectX-convention normal maps (Y points down); leave off for OpenGL convention (Y points up).</td></tr>
+          <tr><td><code>invert_height</code></td><td class="td-type">bool</td><td class="td-default">false</td><td>Invert the final height map (<code>h = 1 − h</code>).</td></tr>
+          <tr><td><code>gradient_strength</code></td><td class="td-type">float</td><td class="td-default">1.0</td><td>Scales the gradient magnitude before solving. Increase for more pronounced height variation; decrease to flatten the result.</td></tr>
+          <tr><td><code>contrast</code></td><td class="td-type">float</td><td class="td-default">1.0</td><td>Contrast adjustment applied after normalization: <code>h = clamp((h − 0.5) × contrast + 0.5, 0, 1)</code>.</td></tr>
+          <tr><td><code>blur_radius</code></td><td class="td-type">float (px)</td><td class="td-default">0</td><td>Radius of a separable box blur applied after solving, to smooth out solver noise. 0 disables blur.</td></tr>
+          <tr><td><code>solver_max_iter</code></td><td class="td-type">int</td><td class="td-default">1000</td><td>Maximum conjugate-gradient iterations. Increase for higher precision at the cost of more compute time; 1000 is sufficient for most normal maps.</td></tr>
+          <tr><td><code>normalize_output</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Stretch the output to [0, 1] before export. Disable if you need to compare maps with a consistent absolute scale.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>API</h3>
+      <pre><span class="kw">#include</span> <span class="str">"modelrepair/NormalToDisplacement.hpp"</span>
+
+modelrepair::NormalToDisplacementSettings s;
+s.gradient_strength = <span class="val">1.0f</span>;
+s.solver_max_iter   = <span class="val">1000</span>;
+s.flip_green        = <span class="val">false</span>;   <span class="cmt">// OpenGL normal map</span>
+s.normalize_output  = <span class="val">true</span>;
+
+<span class="cmt">// Throws std::runtime_error if the image cannot be loaded or exceeds 8 MP.</span>
+modelrepair::NormalToDisplacementResult r =
+    modelrepair::normal_to_displacement(<span class="str">"surface_normals.png"</span>, s);
+
+<span class="cmt">// r.height  — width × height_px floats in [0, 1]
+// r.width / r.height_px — image dimensions
+// r.duration_ms — total processing time</span>
+std::cout &lt;&lt; r.width &lt;&lt; <span class="str">"×"</span> &lt;&lt; r.height_px
+          &lt;&lt; <span class="str">"  ("</span> &lt;&lt; r.duration_ms &lt;&lt; <span class="str">" ms)\n"</span>;</pre>
+
+      <h3>GUI</h3>
+      <p>
+        The <strong>Tools → Normal Map → Displacement</strong> window has two panels. The left panel
+        contains the image path (with Browse…), all settings, a <strong>Run</strong> button, and an
+        <strong>Export 16-bit PNG…</strong> button (enabled after a successful run). An indeterminate
+        progress bar is shown while the solver runs on a background thread. The right panel shows a
+        live grayscale preview of the result that rescales automatically when the window is resized.
+        The window is non-modal — it can stay open while you continue using the main repair workflow.
+        Clicking the toolbar entry a second time raises the existing window rather than opening a duplicate.
       </p>
     </section>
 
