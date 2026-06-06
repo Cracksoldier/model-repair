@@ -11,6 +11,7 @@ add_executable(model-repair-gui
     PreviewWindow.cpp
     WizardWorker.cpp
     WizardWindow.cpp
+    NormalToDisplacementWindow.cpp
     resources.qrc
 )
 

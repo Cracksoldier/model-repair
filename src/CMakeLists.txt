@@ -17,6 +17,7 @@ add_library(modelrepair SHARED
     repairs/Subdivide.cpp
     repairs/NormalMapDisplace.cpp
     analysis/WallThickness.cpp
+    analysis/NormalToDisplacement.cpp
     io/StlIO.cpp
     io/ObjIO.cpp
     io/ThreeMFIO.cpp

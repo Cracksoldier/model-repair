@@ -27,6 +27,7 @@ class QTimer;
 namespace gui
 {
 
+class NormalToDisplacementWindow;
 class ReportView;
 class WizardWindow;
 
@@ -122,7 +123,8 @@ private:
     QTimer*       elapsed_timer_  = nullptr;
     QElapsedTimer elapsed_clock_;
     QElapsedTimer task_clock_;
-    WizardWindow* wizard_         = nullptr;
+    WizardWindow*                    wizard_         = nullptr;
+    NormalToDisplacementWindow*      nm_disp_win_    = nullptr;
     std::shared_ptr<std::atomic<bool>> cancel_flag_;
 };
 

@@ -4,8 +4,10 @@
 #include "PreviewWindow.hpp"
 #include "RepairWorker.hpp"
 #include "ReportView.hpp"
+#include "NormalToDisplacementWindow.hpp"
 #include "WizardWindow.hpp"
 
+#include <QAction>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDoubleSpinBox>
@@ -21,6 +23,9 @@
 #include <QStandardItemModel>
 #include <QThread>
 #include <QTimer>
+#include <QMenu>
+#include <QToolBar>
+#include <QToolButton>
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -38,6 +43,36 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     setWindowTitle("Model Repair");
     setMinimumSize(600, 640);
     setAcceptDrops(true);
+
+    // ── Toolbar ──────────────────────────────────────────────────────────────
+    {
+        auto* toolbar = addToolBar(tr("Tools"));
+        toolbar->setMovable(false);
+
+        auto* tools_menu = new QMenu(this);
+
+        auto* act_nm_to_disp = tools_menu->addAction(tr("Normal Map → Displacement"));
+        connect(act_nm_to_disp, &QAction::triggered, this, [this]
+        {
+            if (nm_disp_win_) {
+                nm_disp_win_->raise();
+                nm_disp_win_->activateWindow();
+                return;
+            }
+            nm_disp_win_ = new NormalToDisplacementWindow(this);
+            nm_disp_win_->setAttribute(Qt::WA_DeleteOnClose);
+            connect(nm_disp_win_, &QObject::destroyed,
+                    this, [this] { nm_disp_win_ = nullptr; });
+            nm_disp_win_->show();
+        });
+
+        auto* tools_btn = new QToolButton;
+        tools_btn->setText(tr("Tools"));
+        tools_btn->setMenu(tools_menu);
+        tools_btn->setPopupMode(QToolButton::InstantPopup);
+        tools_btn->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        toolbar->addWidget(tools_btn);
+    }
 
     auto* central = new QWidget(this);
     setCentralWidget(central);
