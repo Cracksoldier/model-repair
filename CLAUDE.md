@@ -83,7 +83,8 @@ LD_LIBRARY_PATH=build/debug/src \
   build/debug/cli/model-repair broken.stl out.stl --decimate 0.5 \
   --decimate-backend openmesh --decimate-normal-dev 15
 
-# CLI — analyse connected shells (works with --diagnose too)
+# CLI — analyse connected shells (works with --diagnose too;
+#        in diagnose mode output is labelled "(pre-repair, original mesh)")
 LD_LIBRARY_PATH=build/debug/src \
   build/debug/cli/model-repair multi.stl --diagnose --analyze-shells
 
@@ -91,9 +92,16 @@ LD_LIBRARY_PATH=build/debug/src \
 LD_LIBRARY_PATH=build/debug/src \
   build/debug/cli/model-repair multi.stl out.stl --keep-largest-shell
 
-# CLI — export every shell as a separate file (OUTPUT is optional)
+# CLI — export every shell as a separate file (OUTPUT is optional;
+#        read-only, so works with --diagnose too)
 LD_LIBRARY_PATH=build/debug/src \
   build/debug/cli/model-repair multi.stl --export-shells ./shells/
+
+# CLI — export all shells AND keep only the largest in the combined output
+#        (shells are exported first from the full mesh, then the largest is kept)
+LD_LIBRARY_PATH=build/debug/src \
+  build/debug/cli/model-repair multi.stl out.stl \
+  --keep-largest-shell --export-shells ./shells/
 
 # GUI
 build/debug/gui/model-repair-gui
@@ -223,3 +231,6 @@ Color attachment guards: all three color-capable readers snapshot the point coun
 - **CGAL `isotropic_remeshing` is sequential**: CGAL 6.1.1's implementation (`remesh_impl.h`) has no `Parallel_tag` hook, no TBB usage. All phases (splits, collapses, flips, relaxation) run on a single thread.
 - **Catch2 discovery**: `DISCOVERY_MODE PRE_TEST` is required because ASan makes the binary fail to start at CMake build-time (when Catch2 normally runs `--list-tests`).
 - **EGL / Wayland CoreProfile**: On Wayland with the NVIDIA proprietary driver (EGL backend), requesting an OpenGL CoreProfile or MSAA samples in `QSurfaceFormat` produces `EGL_BAD_ATTRIBUTE` (error 3009) and the `QOpenGLWidget` fails to create a context. `main.cpp` therefore requests only a 24-bit depth buffer — no profile, no MSAA. The OpenGL 3.3 GLSL shaders still work because the default EGL context provides 3.3+ compatibility.
+- **CLI `--decimate-backend` is case-sensitive**: Valid values are `cgal`, `meshoptimizer`, `openmesh` (all lowercase). Any other string emits a `Warning:` to stderr and falls back to cgal — it is not treated as an error, so check the warning when the backend matters.
+- **CLI `--analyze-shells` in diagnose mode reports pre-repair topology**: `RepairPipeline::run()` with `diagnose_only=true` deep-copies the mesh and leaves the caller's copy unchanged. Shell analysis therefore runs on the original, unrepaired mesh and the output is labelled "Shell analysis (pre-repair, original mesh)".
+- **CLI `--export-shells` ordering with `--keep-largest-shell`**: When both flags are given, shells are exported first (from the full repaired mesh), then `keep_shells(mesh, 1)` trims the mesh that gets written to OUTPUT. This means the shell files always reflect the full component count, not just the kept shell.

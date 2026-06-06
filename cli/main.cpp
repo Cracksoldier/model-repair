@@ -220,39 +220,47 @@ static int run_single_file(
     {
         auto sr = modelrepair::analyze_shells(mesh);
         if (!quiet)
-            print_shell_analysis(sr);
-
-        if (!opts.diagnose_only)
         {
-            if (keep_largest_shell)
-                modelrepair::keep_shells(mesh, 1);
+            if (opts.diagnose_only)
+                std::cout << "Shell analysis (pre-repair, original mesh):\n";
+            print_shell_analysis(sr);
+        }
 
-            if (!export_shells_dir.empty())
+        // split_shells is read-only — allowed in diagnose mode
+        if (!export_shells_dir.empty())
+        {
+            if (!fs::is_directory(export_shells_dir))
             {
-                if (!fs::is_directory(export_shells_dir))
-                {
-                    logger->error("Export-shells directory does not exist: {}",
-                                  export_shells_dir.string());
+                logger->error("Export-shells directory does not exist: {}",
+                              export_shells_dir.string());
+                return 8;
+            }
+            auto shells = modelrepair::split_shells(mesh);
+            const std::string stem = input_path.stem().string();
+            const std::string ext  = output_path.empty()
+                                     ? ".stl"
+                                     : output_path.extension().string();
+            for (std::size_t i = 0; i < shells.size(); ++i)
+            {
+                fs::path shell_path = export_shells_dir
+                                    / (stem + "_shell_" + std::to_string(i) + ext);
+                try {
+                    modelrepair::io::save(shells[i], shell_path, !ascii_stl);
+                    logger->info("Shell {} saved to {}", i, shell_path.string());
+                } catch (const std::exception& e) {
+                    logger->error("Failed to save shell {}: {}", i, e.what());
                     return 8;
                 }
-                auto shells = modelrepair::split_shells(mesh);
-                const std::string stem = input_path.stem().string();
-                const std::string ext  = output_path.empty()
-                                         ? ".stl"
-                                         : output_path.extension().string();
-                for (std::size_t i = 0; i < shells.size(); ++i)
-                {
-                    fs::path shell_path = export_shells_dir
-                                        / (stem + "_shell_" + std::to_string(i) + ext);
-                    try {
-                        modelrepair::io::save(shells[i], shell_path, !ascii_stl);
-                        logger->info("Shell {} saved to {}", i, shell_path.string());
-                    } catch (const std::exception& e) {
-                        logger->error("Failed to save shell {}: {}", i, e.what());
-                        return 8;
-                    }
-                }
             }
+        }
+
+        // keep_shells mutates the mesh — no effect in diagnose mode
+        if (keep_largest_shell)
+        {
+            if (!opts.diagnose_only)
+                modelrepair::keep_shells(mesh, 1);
+            else
+                logger->warn("--keep-largest-shell has no effect in --diagnose mode");
         }
     }
 
@@ -430,29 +438,35 @@ static int run_batch(
                 auto sr = modelrepair::analyze_shells(mesh);
                 if (!quiet)
                 {
-                    std::cout << in.filename().string() << " — ";
+                    std::cout << in.filename().string();
+                    if (opts.diagnose_only) std::cout << " (pre-repair)";
+                    std::cout << " — ";
                     print_shell_analysis(sr);
                 }
 
-                if (!opts.diagnose_only)
+                // split_shells is read-only — allowed in diagnose mode
+                if (!export_shells_dir.empty())
                 {
-                    if (keep_largest_shell)
-                        modelrepair::keep_shells(mesh, 1);
-
-                    if (!export_shells_dir.empty())
+                    auto shells = modelrepair::split_shells(mesh);
+                    const std::string stem = in.stem().string();
+                    const std::string ext  = in.extension().string();
+                    for (std::size_t i = 0; i < shells.size(); ++i)
                     {
-                        auto shells = modelrepair::split_shells(mesh);
-                        const std::string stem = in.stem().string();
-                        const std::string ext  = in.extension().string();
-                        for (std::size_t i = 0; i < shells.size(); ++i)
-                        {
-                            fs::path shell_path = export_shells_dir
-                                                / (stem + "_shell_" + std::to_string(i) + ext);
+                        fs::path shell_path = export_shells_dir
+                                            / (stem + "_shell_" + std::to_string(i) + ext);
+                        try {
                             modelrepair::io::save(shells[i], shell_path, !ascii_stl);
                             logger->info("Shell {} saved to {}", i, shell_path.string());
+                        } catch (const std::exception& e) {
+                            logger->error("Failed to save shell {}: {}", i, e.what());
+                            // log and continue; primary mesh save proceeds normally
                         }
                     }
                 }
+
+                // keep_shells mutates the mesh
+                if (keep_largest_shell && !opts.diagnose_only)
+                    modelrepair::keep_shells(mesh, 1);
             }
 
             if (!opts.diagnose_only)
@@ -671,6 +685,9 @@ int main(int argc, char* argv[])
         decimate_params.backend = DecimateBackend::MeshOptimizer;
     else if (decimate_backend_str == "openmesh")
         decimate_params.backend = DecimateBackend::OpenMesh;
+    else if (decimate_backend_str != "cgal")
+        std::cerr << "Warning: unknown --decimate-backend '" << decimate_backend_str
+                  << "', falling back to cgal.\n";
     // else: default CGAL
 
     // Configure logging
