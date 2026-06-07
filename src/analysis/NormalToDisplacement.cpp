@@ -5,6 +5,11 @@
 
 #include "modelrepair/NormalToDisplacement.hpp"
 
+#ifdef MODELREPAIR_HAVE_VULKAN
+#include "VulkanPoissonSolver.hpp"
+#include <vulkan/vulkan.h>
+#endif
+
 #include <Eigen/IterativeLinearSolvers>
 #include <Eigen/Sparse>
 
@@ -61,10 +66,32 @@ void box_blur(std::vector<float>& img, int W, int H, float radius)
 
 } // namespace
 
+bool normal_to_displacement_vulkan_available()
+{
+#ifdef MODELREPAIR_HAVE_VULKAN
+    static const bool avail = []() -> bool {
+        VkApplicationInfo ai{VK_STRUCTURE_TYPE_APPLICATION_INFO};
+        ai.apiVersion = VK_API_VERSION_1_0;
+        VkInstanceCreateInfo ci{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
+        ci.pApplicationInfo = &ai;
+        VkInstance inst;
+        if (vkCreateInstance(&ci, nullptr, &inst) != VK_SUCCESS) return false;
+        uint32_t count = 0;
+        vkEnumeratePhysicalDevices(inst, &count, nullptr);
+        vkDestroyInstance(inst, nullptr);
+        return count > 0;
+    }();
+    return avail;
+#else
+    return false;
+#endif
+}
+
 NormalToDisplacementResult normal_to_displacement(
     const std::string& normal_map_path,
     const NormalToDisplacementSettings& settings,
-    std::function<bool(int)> on_iteration)
+    std::function<bool(int)> on_iteration,
+    bool use_vulkan)
 {
     const auto t0 = std::chrono::steady_clock::now();
 
@@ -127,6 +154,38 @@ NormalToDisplacementResult normal_to_displacement(
             b[static_cast<Eigen::Index>(idx)] = -(dgx + dgy);
         }
 
+    // ── 4–5. Solve for heights ────────────────────────────────────────────────
+
+    // Flat normal map: b=0 means x=0 is already the exact solution.
+    const float tol_sq = 1e-10f * b.squaredNorm();
+    if (tol_sq == 0.f)
+    {
+        const float ms = std::chrono::duration<float, std::milli>(
+            std::chrono::steady_clock::now() - t0).count();
+        return {std::vector<float>(static_cast<std::size_t>(N), 0.f),
+                W, H, ms, 0, true};
+    }
+
+    std::vector<float> height(static_cast<std::size_t>(N), 0.f);
+    int  iter      = 0;
+    bool converged = false;
+
+#ifdef MODELREPAIR_HAVE_VULKAN
+    bool ran_gpu = false;
+    if (use_vulkan && normal_to_displacement_vulkan_available()) {
+        std::vector<float> b_vec(b.data(), b.data() + N);
+        VulkanPoissonSolver solver(W, H, b_vec);
+        if (solver.valid()) {
+            solver.run(settings.solver_max_iter, 25, on_iteration);
+            height    = solver.download();
+            iter      = solver.iterations_done();
+            converged = solver.converged();
+            ran_gpu   = true;
+        }
+    }
+    if (!ran_gpu)
+#endif
+    {
     // ── 4. Build sparse negated Laplacian (positive semi-definite) ───────────
     // Neumann BC: truncated stencil at boundaries (n_neighbors determines diagonal).
     // Dirichlet at pixel 0: h[0]=0, applied symmetrically (zero out row 0 and col 0).
@@ -178,18 +237,6 @@ NormalToDisplacementResult normal_to_displacement(
         throw std::runtime_error(
             "NormalToDisplacement: IncompleteCholesky factorization failed");
 
-    // Stopping criterion: ‖r‖ < 1e-5 · ‖b‖  (same as Eigen's default)
-    const float tol_sq = 1e-10f * b.squaredNorm();
-
-    // A flat normal map has b=0; x=0 is already the exact solution.
-    if (tol_sq == 0.f)
-    {
-        const float ms = std::chrono::duration<float, std::milli>(
-            std::chrono::steady_clock::now() - t0).count();
-        return {std::vector<float>(static_cast<std::size_t>(N), 0.f),
-                W, H, ms, 0, true};
-    }
-
     Eigen::VectorXf x  = Eigen::VectorXf::Zero(N);
     Eigen::VectorXf r  = b;               // r₀ = b − A·0 = b
     Eigen::VectorXf z  = ic.solve(r);     // z₀ = M⁻¹ r₀
@@ -197,14 +244,11 @@ NormalToDisplacementResult normal_to_displacement(
     Eigen::VectorXf Ap(N);               // pre-allocated; reused every iteration
     float           rz = r.dot(z);
 
-    int  iter      = 0;
-    bool converged = false;
-
     for (; iter < settings.solver_max_iter; ++iter)
     {
         Ap.noalias() = A.selfadjointView<Eigen::Lower>() * p;
         const float pAp = p.dot(Ap);
-        const float           alpha = rz / pAp;
+        const float alpha = rz / pAp;
 
         x += alpha * p;
         r -= alpha * Ap;
@@ -219,8 +263,10 @@ NormalToDisplacementResult normal_to_displacement(
         if (on_iteration && !on_iteration(iter + 1)) break;   // cooperative cancel
     }
 
+    height.assign(x.data(), x.data() + N);
+    } // end CPU path
+
     // ── 6. Post-processing ────────────────────────────────────────────────────
-    std::vector<float> height(x.data(), x.data() + N);
 
     if (settings.blur_radius >= 0.5f)
         box_blur(height, W, H, settings.blur_radius);

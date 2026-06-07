@@ -1,0 +1,36 @@
+#version 450
+layout(local_size_x = 256) in;
+
+// Implicit 5-point Laplacian SpMV: Ap = L * p
+// Neumann BC at image edges (diagonal always 4), Dirichlet BC at pixel 0 (identity row).
+layout(std430, binding = 0) readonly  buffer P  { float p[];  };
+layout(std430, binding = 1) writeonly buffer Ap { float ap[]; };
+
+layout(push_constant) uniform PC {
+    uint width;
+    uint height;
+};
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= width * height) return;
+
+    // Dirichlet BC: pixel 0 is identity row (h[0] = 0 enforced via RHS)
+    if (i == 0u) { ap[0] = p[0]; return; }
+
+    int x = int(i % width);
+    int y = int(i / width);
+    int W = int(width);
+    int H = int(height);
+
+    // 5-point stencil. Diagonal = 4 for all non-zero pixels (Neumann reflection
+    // ensures the degree count is always 4 even at image edges).
+    // Off-diagonal: skip neighbour j == 0 (Dirichlet column is zeroed out).
+    float s = 0.0;
+    if (x > 0)   { uint j = i - 1u;      if (j != 0u) s += p[j]; }
+    if (x < W-1) {                                     s += p[i + 1u]; }
+    if (y > 0)   { uint j = i - uint(W); if (j != 0u) s += p[j]; }
+    if (y < H-1) {                                     s += p[i + uint(W)]; }
+
+    ap[i] = 4.0 * p[i] - s;
+}

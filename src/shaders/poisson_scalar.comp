@@ -1,0 +1,23 @@
+#version 450
+layout(local_size_x = 1) in;
+
+// Single-thread scalar update. Run after each dot-product reduction.
+//
+// scalar_buf layout: [0]=RZ (dot(r,z)), [1]=ALPHA, [2]=BETA
+//
+// step 0 (alpha):  alpha = RZ / dot[0]           → scalar_buf[ALPHA]
+// step 1 (beta):   beta  = dot[1] / RZ            → scalar_buf[BETA]
+//                  RZ    = dot[1]                  (update for next iteration)
+layout(std430, binding = 0) buffer Dot    { float dot[];    };
+layout(std430, binding = 1) buffer Scalar { float scalar[]; };
+
+layout(push_constant) uniform PC { uint step; };
+
+void main() {
+    if (step == 0u) {
+        scalar[1] = scalar[0] / dot[0];   // alpha = rz / pAp
+    } else {
+        scalar[2] = dot[1] / scalar[0];   // beta  = new_rz / old_rz
+        scalar[0] = dot[1];               // RZ    = new_rz
+    }
+}

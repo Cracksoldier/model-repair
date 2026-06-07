@@ -1,0 +1,16 @@
+#version 450
+layout(local_size_x = 256) in;
+
+// Search-direction update: p[i] = z[i] + beta * p[i]
+// scalar_buf[2] = BETA (written by poisson_scalar step 1).
+layout(std430, binding = 0)          buffer P      { float p[];      };
+layout(std430, binding = 1) readonly buffer Z      { float z[];      };
+layout(std430, binding = 2) readonly buffer Scalar { float scalar[]; };
+
+layout(push_constant) uniform PC { uint N; };
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i >= N) return;
+    p[i] = z[i] + scalar[2] * p[i];   // scalar[2] = BETA
+}

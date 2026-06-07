@@ -52,6 +52,7 @@ private:
     QCheckBox*      chk_flip_green_;
     QCheckBox*      chk_invert_;
     QCheckBox*      chk_normalize_;
+    QCheckBox*      chk_use_vulkan_ = nullptr;  // null when Vulkan is unavailable
     QDoubleSpinBox* spin_gradient_;
     QDoubleSpinBox* spin_contrast_;
     QDoubleSpinBox* spin_blur_;

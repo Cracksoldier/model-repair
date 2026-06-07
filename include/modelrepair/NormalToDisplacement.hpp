@@ -33,11 +33,20 @@ struct NormalToDisplacementResult
 // No mesh is required — this is a pure image-in / image-out operation.
 // Throws std::runtime_error if the image cannot be loaded.
 //
-// on_iteration(iter_1based) is called after each CG iteration.
-// Return false to cancel; the result will be marked not converged.
+// on_iteration(iter_1based) is called after each CG iteration (CPU) or
+// batch-end (GPU). Return false to cancel; the result will be marked not
+// converged.
+//
+// use_vulkan: when true, attempts GPU-accelerated Jacobi-CG (falls back to
+// the CPU IC-PCG solver if a Vulkan device is unavailable or init fails).
 NormalToDisplacementResult normal_to_displacement(
     const std::string& normal_map_path,
     const NormalToDisplacementSettings& settings = {},
-    std::function<bool(int)> on_iteration = nullptr);
+    std::function<bool(int)> on_iteration = nullptr,
+    bool use_vulkan = false);
+
+// Returns true when a Vulkan compute device is available for GPU solving.
+// Result is cached after the first call.
+bool normal_to_displacement_vulkan_available();
 
 } // namespace modelrepair

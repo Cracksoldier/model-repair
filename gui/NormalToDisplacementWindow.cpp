@@ -102,6 +102,11 @@ NormalToDisplacementWindow::NormalToDisplacementWindow(QWidget* parent)
     spin_blur_      = add_dspin("Blur radius (px):", 0.0, 100.0, 0.0, 1.0, 0);
     spin_iters_     = add_ispin("Solver iterations:", 10, 2000, 150);
 
+#ifdef MODELREPAIR_HAVE_VULKAN
+    if (modelrepair::normal_to_displacement_vulkan_available())
+        chk_use_vulkan_ = add_check("Use GPU (Vulkan)", false);
+#endif
+
     {
         auto* lbl_info = new QLabel(
             "Max image: 8 MP (≤ 2828×2828). "
@@ -213,6 +218,7 @@ void NormalToDisplacementWindow::set_running(bool running)
     spin_contrast_->setEnabled(!running);
     spin_blur_->setEnabled(!running);
     spin_iters_->setEnabled(!running);
+    if (chk_use_vulkan_) chk_use_vulkan_->setEnabled(!running);
     progress_bar_->setVisible(running);
     if (running) {
         progress_bar_->setRange(0, spin_iters_->value());
@@ -276,10 +282,11 @@ void NormalToDisplacementWindow::on_run_clicked()
 
     const std::string path_str = path.toStdString();
     const modelrepair::NormalToDisplacementSettings s = collect_settings();
-    const int max_iter = s.solver_max_iter;
+    const int  max_iter  = s.solver_max_iter;
+    const bool use_vulkan = chk_use_vulkan_ && chk_use_vulkan_->isChecked();
 
     watcher_->setFuture(QtConcurrent::run(
-        [path_str, s, max_iter]
+        [path_str, s, max_iter, use_vulkan]
         (QPromise<modelrepair::NormalToDisplacementResult>& promise)
         {
             promise.setProgressRange(0, max_iter);
@@ -291,7 +298,8 @@ void NormalToDisplacementWindow::on_run_clicked()
                 return true;
             };
 
-            auto result = modelrepair::normal_to_displacement(path_str, s, on_iter);
+            auto result = modelrepair::normal_to_displacement(
+                path_str, s, on_iter, use_vulkan);
             if (!promise.isCanceled())
                 promise.addResult(std::move(result));
         }));

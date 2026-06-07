@@ -74,30 +74,44 @@ endif()
 if(Vulkan_FOUND AND MODELREPAIR_ENABLE_VULKAN)
     target_link_libraries(modelrepair PRIVATE Vulkan::Vulkan)
     target_compile_definitions(modelrepair PRIVATE MODELREPAIR_HAVE_VULKAN)
-    target_sources(modelrepair PRIVATE repairs/VulkanSmoothing.cpp)
-
-    set(SHADER_SRC ${CMAKE_CURRENT_SOURCE_DIR}/shaders/smooth_laplacian.comp)
-    set(SHADER_SPV ${CMAKE_CURRENT_BINARY_DIR}/smooth_laplacian.spv)
-    set(SHADER_HDR ${CMAKE_CURRENT_BINARY_DIR}/smooth_laplacian_spv.h)
-
-    add_custom_command(
-        OUTPUT  ${SHADER_SPV}
-        COMMAND ${GLSLC_EXECUTABLE} --target-env=vulkan1.0
-                -o ${SHADER_SPV} ${SHADER_SRC}
-        DEPENDS ${SHADER_SRC}
-        COMMENT "Compiling smooth_laplacian.comp → SPIR-V"
+    target_sources(modelrepair PRIVATE
+        repairs/VulkanSmoothing.cpp
+        analysis/VulkanPoissonSolver.cpp
     )
-    add_custom_command(
-        OUTPUT  ${SHADER_HDR}
-        COMMAND ${CMAKE_COMMAND}
-                -DINPUT_FILE=${SHADER_SPV}
-                -DOUTPUT_FILE=${SHADER_HDR}
-                -DARRAY_NAME=smooth_laplacian_spv
-                -P ${CMAKE_SOURCE_DIR}/cmake/EmbedSpv.cmake
-        DEPENDS ${SHADER_SPV}
-        COMMENT "Embedding SPIR-V into smooth_laplacian_spv.h"
-    )
-    target_sources(modelrepair PRIVATE ${SHADER_HDR})
+
+    # Helper macro: compile a GLSL compute shader to an embedded SPIR-V header.
+    macro(embed_shader NAME)
+        set(_SRC ${CMAKE_CURRENT_SOURCE_DIR}/shaders/${NAME}.comp)
+        set(_SPV ${CMAKE_CURRENT_BINARY_DIR}/${NAME}.spv)
+        set(_HDR ${CMAKE_CURRENT_BINARY_DIR}/${NAME}_spv.h)
+        add_custom_command(
+            OUTPUT  ${_SPV}
+            COMMAND ${GLSLC_EXECUTABLE} --target-env=vulkan1.0
+                    -o ${_SPV} ${_SRC}
+            DEPENDS ${_SRC}
+            COMMENT "Compiling ${NAME}.comp → SPIR-V"
+        )
+        add_custom_command(
+            OUTPUT  ${_HDR}
+            COMMAND ${CMAKE_COMMAND}
+                    -DINPUT_FILE=${_SPV}
+                    -DOUTPUT_FILE=${_HDR}
+                    -DARRAY_NAME=${NAME}_spv
+                    -P ${CMAKE_SOURCE_DIR}/cmake/EmbedSpv.cmake
+            DEPENDS ${_SPV}
+            COMMENT "Embedding SPIR-V into ${NAME}_spv.h"
+        )
+        target_sources(modelrepair PRIVATE ${_HDR})
+    endmacro()
+
+    embed_shader(smooth_laplacian)
+    embed_shader(poisson_spmv)
+    embed_shader(poisson_reduce)
+    embed_shader(poisson_axpy)
+    embed_shader(poisson_precond)
+    embed_shader(poisson_scalar)
+    embed_shader(poisson_pupdate)
+
     target_include_directories(modelrepair PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 endif()
 
