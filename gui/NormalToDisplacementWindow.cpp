@@ -100,7 +100,7 @@ NormalToDisplacementWindow::NormalToDisplacementWindow(QWidget* parent)
     spin_gradient_  = add_dspin("Gradient strength:", 0.01, 20.0, 1.0, 0.1, 2);
     spin_contrast_  = add_dspin("Contrast:", 0.1, 10.0, 1.0, 0.1, 2);
     spin_blur_      = add_dspin("Blur radius (px):", 0.0, 100.0, 0.0, 1.0, 0);
-    spin_iters_     = add_ispin("Solver iterations:", 10, 2000, 300);
+    spin_iters_     = add_ispin("Solver iterations:", 10, 2000, 150);
 
     {
         auto* lbl_info = new QLabel(
@@ -204,6 +204,7 @@ void NormalToDisplacementWindow::set_running(bool running)
     btn_run_->setEnabled(!running);
     btn_cancel_->setEnabled(running);
     btn_export_->setEnabled(!running && !result_.height.empty());
+    spin_iters_->setEnabled(!running);
     progress_bar_->setVisible(running);
     if (running) {
         progress_bar_->setRange(0, spin_iters_->value());
