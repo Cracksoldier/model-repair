@@ -89,7 +89,7 @@ Free functions (headers in `include/modelrepair/`):
 - `remove_internal_geometry(Mesh&)` — centroid `Side_of_triangle_mesh` test; pipeline step 7, off by default
 - `subdivide(Mesh&, iters, method)` — Loop or Catmull-Clark with UV propagation to new vertices
 - `displace_from_normal_map(Mesh&, params)` — requires `"v:uv"` map; uses blue/Z channel as pseudo-height
-- `normal_to_displacement(path, settings, on_iteration)` — image-in/image-out Poisson height map via PCG + IncompleteCholesky; 8 MP limit; `on_iteration` returns false to cancel cooperatively
+- `normal_to_displacement(path, settings, on_iteration, use_vulkan=false)` — image-in/image-out Poisson height map; CPU path: IC-PCG (50–150 iters, 8 MP limit); GPU path (`use_vulkan=true`): Jacobi-CG on Vulkan compute (`VulkanPoissonSolver`), ~3000 iters batched 25/cmd-buf, faster on ≥512×512. Falls back to CPU if GPU init fails. `normal_to_displacement_vulkan_available()` probes and caches device availability.
 - `smooth(Mesh&, iters, crease_angle, on_iteration)` — cotangent Laplacian, dihedral-angle feature preservation, volume restore via uniform scaling (closed meshes only)
 - `remesh(Mesh&, edge_length_factor, iters)` — isotropic remeshing; edges ≤ `factor × mean` constrained to freeze fine geometry
 - `decimate(Mesh&, params)` — CGAL (edge_collapse), MeshOptimizer (meshopt_simplify), or OpenMesh (QEM); each saves/restores `"v:color"`
@@ -125,7 +125,7 @@ Non-obvious per-format notes:
 - **`BatchWindow`** — sequential multi-file repair on a background thread; output to `_repaired` suffix or custom dir; close blocked while running.
 - **`PreviewWindow`** — side-by-side Before/After with `MeshViewWidget` (OpenGL 3.3 flat Phong). Display modes: Normal / Wall Thickness (AABB heatmap) / Overhang. Shared `CameraState` (arcball + pan + zoom) across both widgets.
 - **`WizardWindow`** — 3-phase QDialog: Phase 1 (repair), Phase 2 (remesh/smooth/subdivide/normal-displacement), Phase 3 (decimate). Each phase has options → running → preview states. Retry reverts `current_mesh_` to `phase_start_mesh_`. Phase 2 cancellable per-iteration via `WizardCancelled` sentinel (not `std::exception`); Phases 1/3 run to completion.
-- **`NormalToDisplacementWindow`** — standalone Poisson height-map tool (no mesh). Qt 6 `QtConcurrent::run` with `QPromise`; cancels via `promise.isCanceled()`. Export writes 16-bit grayscale PNG.
+- **`NormalToDisplacementWindow`** — standalone Poisson height-map tool (no mesh). Qt 6 `QtConcurrent::run` with `QPromise`; cancels via `promise.isCanceled()`. "Use GPU (Vulkan)" checkbox is hidden when `normal_to_displacement_vulkan_available()` is false (same pattern as smooth). Export writes 16-bit grayscale PNG.
 
 ## Known quirks
 
@@ -133,6 +133,7 @@ Non-obvious per-format notes:
 - **lib3mf GCC 16 patch**: `cmake/patch_lib3mf_gcc16.cmake` adds missing `#include`s and `#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"` for libzip Windows sources.
 - **TBB parallel smoothing**: `MODELREPAIR_ENABLE_TBB=ON` activates `std::execution::par_unseq` in the cotangent Laplacian loop. CGAL's `isotropic_remeshing` is always sequential (no Parallel_tag in 6.1.1).
 - **Vulkan GPU smoothing**: cotangent weights precomputed once and uploaded as CSR matrix — avoids CPU↔GPU round-trips per iteration. Checkbox is *hidden* (not disabled) when `smooth_vulkan_available()` returns false.
+- **Vulkan GPU Poisson solver** (`VulkanPoissonSolver`): Jacobi-preconditioned CG using 6 compute shaders (spmv, reduce, axpy, precond, scalar, pupdate). CPU initialises x=0, r=b, z=b/4, p=z, rz₀=‖b‖²/4 and uploads before the first dispatch. 25 CG iterations per command buffer; convergence checked by reading scalar_buf[0]=dot(r,z)=‖r‖²/4 against `initial_rz×tol²` (tol=1e-4).
 - **ASan + PCG**: debug+ASan builds run PCG at ~10–50× slower than release due to shadow-memory cache misses. Use release for production normal-map work.
 - **Catch2 discovery**: `DISCOVERY_MODE PRE_TEST` required — ASan makes the binary fail at CMake build-time otherwise.
 - **EGL/Wayland CoreProfile**: NVIDIA EGL gives `EGL_BAD_ATTRIBUTE` if CoreProfile or MSAA is requested. `main.cpp` requests only a 24-bit depth buffer.
