@@ -156,7 +156,7 @@ cmake --build build/minimal -j$(nproc)
 5. Review the per-step report in the main window
 6. Click **Save As…** to export the repaired mesh
 7. Or click **Wizard…** for a guided three-phase workflow: Phase 1 repairs the mesh, Phase 2 optionally remeshes/smooths/subdivides it and can bake a normal map into geometry [highly experimental], Phase 3 optionally decimates it — each phase shows a before/after 3D preview before you commit
-8. Use the **Tools** dropdown in the toolbar to open standalone tools — currently: **Normal Map → Displacement** (converts a tangent-space normal map PNG to a 16-bit grayscale height map via Poisson reconstruction; no mesh required; limit: ≤8 MP)
+8. Use the **Tools** dropdown in the toolbar to open standalone tools — currently: **Normal Map → Displacement** (converts a tangent-space normal map PNG to a 16-bit grayscale height map via Poisson reconstruction; no mesh required; limit: ≤8 MP; shows a live progress bar and elapsed/ETA label; Cancel stops the solver within one iteration)
 
 ### CLI
 
