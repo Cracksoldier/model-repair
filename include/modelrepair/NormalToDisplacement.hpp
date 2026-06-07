@@ -14,7 +14,7 @@ struct NormalToDisplacementSettings
     float gradient_strength = 1.0f;
     float contrast          = 1.0f;
     float blur_radius       = 0.0f;   // pixels; 0 = no blur
-    int   solver_max_iter   = 300;
+    int   solver_max_iter   = 150;
     bool  normalize_output  = true;
 };
 

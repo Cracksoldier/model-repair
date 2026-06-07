@@ -45,7 +45,8 @@ private:
     modelrepair::NormalToDisplacementSettings collect_settings() const;
 
     // Input
-    QLineEdit*      edit_path_;
+    QLineEdit*    edit_path_;
+    QPushButton*  btn_browse_;
 
     // Settings
     QCheckBox*      chk_flip_green_;

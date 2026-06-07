@@ -1563,7 +1563,7 @@ gy = −ny / max(nz, ε) × gradient_strength</pre>
           <tr><td><code>gradient_strength</code></td><td class="td-type">float</td><td class="td-default">1.0</td><td>Scales the gradient magnitude before solving. Increase for more pronounced height variation; decrease to flatten the result.</td></tr>
           <tr><td><code>contrast</code></td><td class="td-type">float</td><td class="td-default">1.0</td><td>Contrast adjustment applied after normalization: <code>h = clamp((h − 0.5) × contrast + 0.5, 0, 1)</code>.</td></tr>
           <tr><td><code>blur_radius</code></td><td class="td-type">float (px)</td><td class="td-default">0</td><td>Radius of a separable box blur applied after solving, to smooth out solver noise. 0 disables blur.</td></tr>
-          <tr><td><code>solver_max_iter</code></td><td class="td-type">int</td><td class="td-default">300</td><td>Maximum conjugate-gradient iterations. With the IncompleteCholesky preconditioner, 300 is conservative — most images converge in 50–150 iterations. Increase only if the status shows "not converged".</td></tr>
+          <tr><td><code>solver_max_iter</code></td><td class="td-type">int</td><td class="td-default">150</td><td>Maximum conjugate-gradient iterations. With the IncompleteCholesky preconditioner, 50–150 iterations usually suffice. Increase only if the status shows "not converged".</td></tr>
           <tr><td><code>normalize_output</code></td><td class="td-type">bool</td><td class="td-default">true</td><td>Stretch the output to [0, 1] before export. Disable if you need to compare maps with a consistent absolute scale.</td></tr>
         </tbody>
       </table>

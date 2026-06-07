@@ -45,11 +45,11 @@ NormalToDisplacementWindow::NormalToDisplacementWindow(QWidget* parent)
         edit_path_ = new QLineEdit;
         edit_path_->setPlaceholderText("Normal map path…");
         edit_path_->setMinimumWidth(220);
-        auto* btn_browse = new QPushButton("Browse…");
+        btn_browse_ = new QPushButton("Browse…");
         row->addWidget(edit_path_);
-        row->addWidget(btn_browse);
+        row->addWidget(btn_browse_);
         left->addLayout(row);
-        connect(btn_browse, &QPushButton::clicked,
+        connect(btn_browse_, &QPushButton::clicked,
                 this, &NormalToDisplacementWindow::on_browse_clicked);
     }
 
@@ -204,6 +204,14 @@ void NormalToDisplacementWindow::set_running(bool running)
     btn_run_->setEnabled(!running);
     btn_cancel_->setEnabled(running);
     btn_export_->setEnabled(!running && !result_.height.empty());
+    edit_path_->setEnabled(!running);
+    btn_browse_->setEnabled(!running);
+    chk_flip_green_->setEnabled(!running);
+    chk_invert_->setEnabled(!running);
+    chk_normalize_->setEnabled(!running);
+    spin_gradient_->setEnabled(!running);
+    spin_contrast_->setEnabled(!running);
+    spin_blur_->setEnabled(!running);
     spin_iters_->setEnabled(!running);
     progress_bar_->setVisible(running);
     if (running) {
