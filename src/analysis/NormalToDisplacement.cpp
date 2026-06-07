@@ -174,23 +174,36 @@ NormalToDisplacementResult normal_to_displacement(
     // step for progress reporting and cooperative cancellation.
     Eigen::IncompleteCholesky<float, Eigen::Lower> ic;
     ic.compute(A);
+    if (ic.info() != Eigen::Success)
+        throw std::runtime_error(
+            "NormalToDisplacement: IncompleteCholesky factorization failed");
+
+    // Stopping criterion: ‖r‖ < 1e-5 · ‖b‖  (same as Eigen's default)
+    const float tol_sq = 1e-10f * b.squaredNorm();
+
+    // A flat normal map has b=0; x=0 is already the exact solution.
+    if (tol_sq == 0.f)
+    {
+        const float ms = std::chrono::duration<float, std::milli>(
+            std::chrono::steady_clock::now() - t0).count();
+        return {std::vector<float>(static_cast<std::size_t>(N), 0.f),
+                W, H, ms, 0, true};
+    }
 
     Eigen::VectorXf x  = Eigen::VectorXf::Zero(N);
     Eigen::VectorXf r  = b;               // r₀ = b − A·0 = b
     Eigen::VectorXf z  = ic.solve(r);     // z₀ = M⁻¹ r₀
     Eigen::VectorXf p  = z;
+    Eigen::VectorXf Ap(N);               // pre-allocated; reused every iteration
     float           rz = r.dot(z);
-
-    // Stopping criterion: ‖r‖ < 1e-5 · ‖b‖  (same as Eigen's default)
-    const float tol_sq = 1e-10f * b.squaredNorm();
 
     int  iter      = 0;
     bool converged = false;
 
     for (; iter < settings.solver_max_iter; ++iter)
     {
-        const Eigen::VectorXf Ap  = A.selfadjointView<Eigen::Lower>() * p;
-        const float           pAp = p.dot(Ap);
+        Ap.noalias() = A.selfadjointView<Eigen::Lower>() * p;
+        const float pAp = p.dot(Ap);
         const float           alpha = rz / pAp;
 
         x += alpha * p;

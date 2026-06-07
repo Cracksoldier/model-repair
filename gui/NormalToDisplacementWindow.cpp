@@ -363,8 +363,9 @@ void NormalToDisplacementWindow::on_progress(int iter)
 {
     progress_bar_->setValue(iter);
     if (iter > 0) {
+        elapsed_timer_->stop();   // on_progress now owns lbl_elapsed_
         const qint64 elapsed = elapsed_clock_.elapsed();
-        const qint64 eta     = elapsed / iter * (progress_bar_->maximum() - iter);
+        const qint64 eta     = elapsed * (progress_bar_->maximum() - iter) / iter;
         lbl_elapsed_->setText(
             gui::fmt_elapsed(elapsed) + " / ~" + gui::fmt_elapsed(eta));
     }
